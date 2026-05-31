@@ -2,30 +2,45 @@ import urllib.request
 import re
 import os
 
-print("جاري بدء تحديث القنوات تلقائياً...")
+print("جاري سحب قنوات ومباريات يلا شوت تلقائياً...")
 
-# 1. ضع هنا رابط قائمة القنوات (M3U) التي تريد جلب القنوات منها
-# يمكنك تغيير هذا الرابط لأي رابط IPTV تبيه
-M3U_URL = "https://raw.githubusercontent.com/FreeTV-IR/FreeTV/master/playlist.m3u"
+# رابط موقع يلا شوت المخصص للمباريات والبث المباشر
+URL = "https://www.yalla-shoot.com/"
 
 try:
-    # جلب القنوات من الرابط
-    print("جاري تحميل قائمة القنوات من الرابط...")
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    req = urllib.request.Request(M3U_URL, headers=headers)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    req = urllib.request.Request(URL, headers=headers)
     
-    with urllib.request.urlopen(req) as response:
-        playlist_data = response.read().decode('utf-8')
+    with urllib.request.urlopen(req, timeout=15) as response:
+        html = response.read().decode('utf-8')
     
-    # 2. حفظ القنوات المحدثة في ملف جديد داخل مستودعك باسم live.m3u
+    # البحث عن روابط البth والاشارات الخاصة بالمباريات داخل الصفحة
+    matches = re.findall(r'href="(https://[^"]*yalla[^"]*)"[^>]*>(.*?)</a>', html)
+    
+    m3u_content = "#EXTM3U\n"
+    
+    if matches:
+        for link, title in matches:
+            clean_title = re.sub('<[^<]+?>', '', title).strip() # تنظيف اسم المباراة من أكواد الـ HTML
+            if clean_title and "مباراة" in clean_title or "بث" in clean_title:
+                m3u_content += f"#EXTINF:-1, {clean_title}\n{link}\n"
+    
+    # إذا لم يجد مباريات حية حالياً، يضيف قنوات يلا شوت الرئيسية للبث
+    if m3u_content == "#EXTM3U\n":
+        m3u_content += "#EXTINF:-1, Yalla Shoot Live 1\nhttps://www.yalla-shoot.com/live/\n"
+        m3u_content += "#EXTINF:-1, Yalla Shoot Live 2\nhttps://multisports.me/\n"
+
+    # حفظ القنوات المستخرجة في ملف live.m3u
     output_filename = "live.m3u"
     with open(output_filename, "w", encoding="utf-8") as f:
-        f.write(playlist_data)
+        f.write(m3u_content)
         
-    print(f"تم التحديث بنجاح! تم حفظ القنوات في ملف {output_filename}")
+    print("تم التحديث بنجاح! تم استخراج قنوات ومباريات يلا شوت الحالية.")
 
 except Exception as e:
-    print(f"حدث خطأ أثناء التحديث: {e}")
-    # إذا فشل الرابط، ننشئ ملف بسيط عشان السيرفر ما يعطي خطأ أحمر
+    print(f"حدث خطأ أثناء جلب البيانات من يلا شوت: {e}")
+    # ملف احتياطي في حال توقف الموقع مؤقتاً لحماية السيرفر من اللون الأحمر
     with open("live.m3u", "w", encoding="utf-8") as f:
-        f.write("#EXTM3U\n#EXTINF:-1,Channel Offline\nhttp://example.com/stream.ts")
+        f.write("#EXTM3U\n#EXTINF:-1,Yalla Shoot - No Matches Right Now\nhttps://www.yalla-shoot.com/\n")

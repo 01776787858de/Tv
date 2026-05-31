@@ -1,33 +1,42 @@
 name: Auto Update Channels
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'
+    # يعمل تلقائياً كل 6 ساعات (يمكنك تعديل الوقت حسب رغبتك)
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # يتيح لك تشغيل البوت يدوياً بضغطة زر
 
 jobs:
-  run-bot:
+  update:
     runs-on: ubuntu-latest
-    
-    permissions:
-      contents: write 
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    # 1. سحب الكود الحالي من المستودع
+    - name: Checkout Repository
+      uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
+    # 2. إعداد بيئة بايثون (تأكد من الإصدار المناسب للبوت الخاص بك)
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-python-version: '3.10'
 
-      - name: Run script
-        run: python updater.py
+    # 3. تثبيت المكتبات المطلوبة (إذا كان لديك ملف requirements.txt)
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Commit and push changes
-        run: |
-          git config --global user.name "GitHub Action Bot"
-          git config --global user.email "action@github.com"
-          git add channels.json
-          git commit -m "Auto update channels 🤖" || exit 0
-          git push
+    # 4. تشغيل كود البوت لتحديث القنوات (استبدل main.py باسم ملف التشغيل الخاص بك إذا كان مختلفاً)
+    - name: Run Update Script
+      run: python main.py
+
+    # 5. السطور السحرية: تعريف البوت ورفع الملفات الجديدة للمستودع لمنع الخطأ 128
+    - name: Commit and Push Changes
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add .
+        # التحقق إذا كان هناك أي ملفات جديدة تم تحديثها لرفعها، وإلا لن يفعل شيئاً لمنع الأخطاء
+        git diff-index --quiet HEAD || git commit -m "Auto Update: Channels updated"
+        git push

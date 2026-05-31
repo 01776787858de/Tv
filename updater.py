@@ -1,10 +1,9 @@
 import urllib.request
-import os
 
-print("جاري جلب قائمة مباريات وقنوات يلا شوت المحدثة...")
+print("جاري جلب قائمة القنوات والمباريات العربية المحدثة...")
 
-# رابط مباشر ومفتوح لقنوات يلا شوت وبين سبورت للمباريات
-M3U_SOURCE = "https://raw.githubusercontent.com/arabianiptv/ArabianIPTV/master/yalla_shoot.m3u"
+# أقوى رابط IPTV عربي مفتوح ومحدث على مدار الساعة (يحتوي على قنوات الرياضة والمباريات)
+M3U_SOURCE = "https://raw.githubusercontent.com/TheGreatestM/Arabic-IPTV/main/Arabic_IPTV.m3u"
 
 try:
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -22,6 +21,6 @@ try:
 
 except Exception as e:
     print(f"حدث خطأ: {e}")
-    # ملف احتياطي دائم بملخص قنوات يلا شوت
+    # رابط احتياطي شغال ومباشر للبث الرياضي
     with open("live.m3u", "w", encoding="utf-8") as f:
-        f.write("#EXTM3U\n#EXTINF:-1,Yalla Shoot Main Stream\nhttps://multisports.me/\n")
+        f.write("#EXTM3U\n#EXTINF:-1,Yalla Shoot Live Stream\nhttps://multisports.me/\n")

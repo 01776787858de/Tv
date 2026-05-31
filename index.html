@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة أبو سعيد للبث المباشر والإدارة 📺</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --active-channel: #ef4444;
+            --success: #10b981;
+        }
+        
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-dark); color: var(--text-main); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        
+        .header { width: 100%; max-width: 1200px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border); padding-bottom: 15px; margin-bottom: 20px; }
+        h1 { margin: 0; color: var(--primary); font-size: 24px; }
+        
+        .tv-container { width: 100%; max-width: 1200px; display: flex; gap: 20px; background: var(--panel-bg); padding: 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--border); height: 70vh; margin-bottom: 30px; }
+        
+        .video-section { flex: 2; background: #000; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); }
+        video { width: 100%; height: 100%; outline: none; background: #000; object-fit: contain; }
+        
+        .channels-sidebar { flex: 1; display: flex; flex-direction: column; background: var(--bg-dark); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+        .search-box { padding: 15px; border-bottom: 1px solid var(--border); background: var(--panel-bg); }
+        .search-box input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-dark); color: white; outline: none; font-size: 15px; }
+        
+        .channels-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .channel-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; background: var(--panel-bg); }
+        .channel-main { display: flex; align-items: center; gap: 12px; flex: 1; overflow: hidden; }
+        .channel-item.active { background: var(--active-channel); font-weight: bold; }
+        .channel-logo { width: 38px; height: 38px; border-radius: 50%; object-fit: contain; background: #fff; padding: 2px; }
+        .channel-name { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        /* أزرار الحذف الصغيرة للإدارة */
+        .btn-del-ch { background: #ef4444; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; display: none; }
+
+        /* لوحة تحكم بانيل الإدارة بالأسفل */
+        .admin-panel { width: 100%; max-width: 1200px; background: var(--panel-bg); border-radius: 16px; padding: 25px; border: 1px dashed var(--primary); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 15px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        input[type="text"], input[type="password"] { padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-dark); color: white; outline: none; }
+        input:focus { border-color: var(--primary); }
+        
+        button.main-btn { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.2s; }
+        button.main-btn:hover { background: var(--primary-hover); }
+
+        #toast-container { position: fixed; bottom: 20px; left: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 9999; }
+        .toast { padding: 14px 24px; border-radius: 8px; font-weight: bold; color: white; box-shadow: 0 10px 15px rgba(0,0,0,0.2); }
+
+        @media (max-width: 900px) {
+            .tv-container { flex-direction: column; height: auto; }
+            .video-section, .channels-sidebar { height: 350px; flex: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <div class="header">
+        <h1>منصة أبو سعيد التلفزيونية الذكية 📺</h1>
+        <div style="color: var(--text-muted); font-size: 14px;">بث مباشر مخصص ومحمي</div>
+    </div>
+
+    <div class="tv-container">
+        <div class="video-section">
+            <video id="videoPlayer" controls autoplay></video>
+        </div>
+
+        <div class="channels-sidebar">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 ابحث عن قناة..." onkeyup="filterChannels()">
+            </div>
+            <div class="channels-list" id="channelsList">
+                <div style="text-align:center; padding: 20px; color: var(--text-muted);">⏳ جاري جلب قنواتك من السيرفر...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-panel">
+        <div id="tokenBox">
+            <h3 style="margin:0 0 10px 0; color: var(--primary);">🔒 تسجيل دخول بانيل الإدارة</h3>
+            <div style="display:flex; gap: 10px;">
+                <input type="password" id="ghToken" placeholder="أدخل رمز GitHub Token لفتح لوحة التحكم" style="flex:1;">
+                <button onclick="loginAdmin()" style="padding:0 20px; background:var(--success); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">دخول 🔑</button>
+            </div>
+        </div>
+
+        <div id="controlBox" style="display:none;">
+            <h3 style="margin:0; color: var(--success);">☁️ إضافة قناة بث مباشر جديدة إلى البانيل</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>اسم القناة:</label>
+                    <input type="text" id="chName" placeholder="مثال: beIN Sports 1">
+                </div>
+                <div class="form-group">
+                    <label>رابط البث المباشر (M3U8 / MP4):</label>
+                    <input type="text" id="chUrl" placeholder="http://server.com:8080/live/stream.m3u8" style="direction:ltr;">
+                </div>
+                <div class="form-group">
+                    <label>رابط شعار القناة (اختياري):</label>
+                    <input type="text" id="chLogo" placeholder="https://site.com/logo.png" style="direction:ltr;">
+                </div>
+            </div>
+            <button class="main-btn" onclick="addChannel()" style="margin-top: 15px; width:100%;">حفظ وإضافة القناة للمشاهدين 🚀</button>
+            <button onclick="logoutAdmin()" style="background:#475569; color:white; border:none; padding:8px 15px; border-radius:6px; margin-top:15px; cursor:pointer; font-size:13px;">تسجيل الخروج (قفل اللوحة)</button>
+        </div>
+    </div>
+
+    <script>
+        // ضبط معلومات الحساب والمستودع الحالي تلقائياً
+        const OWNER = "01776787858de";
+        const REPO = window.location.pathname.split('/')[1] || "tv"; 
+        const FILE_PATH = "channels.json";
+
+        let channelsArray = [];
+        let fileSHA = null;
+        const video = document.getElementById('videoPlayer');
+        const hls = new Hls();
+
+        function showToast(msg, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.style.backgroundColor = type === 'error' ? '#ef4444' : '#10b981';
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => { toast.remove(); }, 3000);
+        }
+
+        window.onload = function() {
+            loadChannelsFromServer();
+            checkAdminStatus();
+        };
+
+        // جلب القنوات المخصصة من ملف json داخل مستودعك
+        async function loadChannelsFromServer() {
+            const container = document.getElementById('channelsList');
+            try {
+                const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, { cache: 'no-store' });
+                if(res.status === 404) {
+                    container.innerHTML = "<p style='text-align:center; color:var(--text-muted);'>البانيل فارغ، لا توجد قنوات مضافة حالياً.</p>";
+                    return;
+                }
+                const data = await res.json();
+                fileSHA = data.sha;
+                const jsonText = atob(data.content);
+                channelsArray = JSON.parse(jsonText);
+                renderChannels();
+            } catch(e) {
+                container.innerHTML = "<p style='text-align:center; color:#ef4444;'>حدث خطأ أثناء جلب القنوات من السيرفر.</p>";
+            }
+        }
+
+        function renderChannels() {
+            const container = document.getElementById('channelsList');
+            container.innerHTML = "";
+            const isAdmin = document.getElementById('controlBox').style.display === 'block';
+
+            if(channelsArray.length === 0) {
+                container.innerHTML = "<p style='text-align:center; color:var(--text-muted);'>لا توجد قنوات مضافة حالياً.</p>";
+                return;
+            }
+
+            channelsArray.forEach((ch, index) => {
+                const item = document.createElement('div');
+                item.className = 'channel-item';
+                
+                const logoHTML = ch.logo ? `<img src="${ch.logo}" class="channel-logo" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'38\' height=\'38\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'><rect x=\'2\' y=\'7\' width=\'20\' height=\'15\' rx=\'2\'/><polyline points=\'17 2 12 7 7 2\'/></svg>'">` : `<div class="channel-logo" style="display:flex;align-items:center;justify-content:center;color:#000;font-size:18px;">📺</div>`;
+                
+                item.innerHTML = `
+                    <div class="channel-main" onclick="playChannel('${ch.url}', this)">
+                        ${logoHTML}
+                        <div class="channel-name">${ch.name}</div>
+                    </div>
+                    <button class="btn-del-ch" style="display: ${isAdmin ? 'block' : 'none'};" onclick="deleteChannel(${index})">حذف 🗑️</button>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function playChannel(url, element) {
+            document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
+            element.parentElement.classList.add('active');
+
+            if (Hls.isSupported()) {
+                hls.loadSource(url); hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url; video.play();
+            } else {
+                showToast("متصفحك لا يدعم هذا البث.", "error");
+            }
+        }
+
+        function filterChannels() {
+            const q = document.getElementById('searchInput').value.toLowerCase();
+            const items = document.querySelectorAll('.channel-item');
+            items.forEach(item => {
+                const name = item.querySelector('.channel-name').innerText.toLowerCase();
+                item.style.display = name.includes(q) ? 'flex' : 'none';
+            });
+        }
+
+        // إدارات البانيل والتوكن للتحكم بالروابط
+        function loginAdmin() {
+            const token = document.getElementById('ghToken').value.trim();
+            if(!token) return showToast("أدخل الرمز أولاً!", "error");
+            localStorage.setItem('tv_git_token', token);
+            checkAdminStatus();
+            showToast("تم فتح لوحة التحكم بنجاح!", "success");
+        }
+
+        function logoutAdmin() {
+            localStorage.removeItem('tv_git_token');
+            location.reload();
+        }
+
+        function checkAdminStatus() {
+            const token = localStorage.getItem('tv_git_token');
+            if(token) {
+                document.getElementById('tokenBox').style.display = 'none';
+                document.getElementById('controlBox').style.display = 'block';
+                document.querySelectorAll('.btn-del-ch').forEach(b => b.style.display = 'block');
+            }
+        }
+
+        // إضافة قناة جديدة وحفظ البيانات برمجياً بالخلفية للـ JSON
+        async function addChannel() {
+            const token = localStorage.getItem('tv_git_token');
+            const name = document.getElementById('chName').value.trim();
+            const url = document.getElementById('chUrl').value.trim();
+            const logo = document.getElementById('chLogo').value.trim();
+
+            if(!name || !url) return showToast("الرجاء تعبئة الاسم ورابط البث!", "error");
+
+            channelsArray.push({ name, url, logo });
+            await saveToGitHub(token, "Add new channel");
+        }
+
+        // حذف قناة وإعادة رفع التحديث تلقائياً
+        async function deleteChannel(index) {
+            if(!confirm("هل تريد حذف هذه القناة نهائياً من البanيل؟")) return;
+            const token = localStorage.getItem('tv_git_token');
+            channelsArray.splice(index, 1);
+            await saveToGitHub(token, "Delete channel");
+        }
+
+        // الدالة المسؤولة عن معالجة التحديث وإرساله لجيت هاب
+        async function saveToGitHub(token, messageText) {
+            const base64Content = btoa(unescape(encodeURIComponent(JSON.stringify(channelsArray, null, 2))));
+            const bodyData = {
+                message: messageText,
+                content: base64Content
+            };
+            if(fileSHA) bodyData.sha = fileSHA;
+
+            try {
+                const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
+                    method: "PUT",
+                    headers: { "Authorization": `token ${token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify(bodyData)
+                });
+
+                if(res.ok) {
+                    showToast("تم تحديث وحفظ البيانات في السيرفر بنجاح! 🎉");
+                    document.getElementById('chName').value = "";
+                    document.getElementById('chUrl').value = "";
+                    document.getElementById('chLogo').value = "";
+                    loadChannelsFromServer();
+                } else {
+                    showToast("فشل الحفظ، تأكد من صلاحيات الـ Token السري.", "error");
+                }
+            } catch(e) {
+                showToast("حدث خطأ أثناء الاتصال بالسيرفر.", "error");
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,34 +1,33 @@
 name: Auto Update Channels
 
 on:
-  workflow_dispatch: # هذا السطر يعطيك زر تشغيل يدوي للتجربة
+  workflow_dispatch:
   schedule:
-    - cron: '0 * * * *' # هذا السطر لتشغيله تلقائياً كل ساعة
+    - cron: '0 * * * *'
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     
-    # الصلاحيات المطلوبة للبوت لتعديل الملفات
     permissions:
       contents: write 
 
     steps:
-      - name: سحب ملفات الموقع
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: تجهيز لغة بايثون
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: تشغيل كود السحب (سكريبت بايثون)
+      - name: Run script
         run: python updater.py
 
-      - name: حفظ التغييرات وإرسالها للمنصة
+      - name: Commit and push changes
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
           git add channels.json
-          git commit -m "تحديث تلقائي للقنوات 🤖" || exit 0
+          git commit -m "Auto update channels 🤖" || exit 0
           git push

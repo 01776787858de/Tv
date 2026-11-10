@@ -1,6 +1,6 @@
 "use strict";
 const express=require("express"),helmet=require("helmet"),rateLimit=require("express-rate-limit"),fs=require("fs"),path=require("path"),crypto=require("crypto"),{Pool}=require("pg");
-const app=express();const PORT=process.env.PORT||3000;const DATA=process.env.DATA_FILE||path.join(__dirname,"data.json");
+const app=express();app.set("trust proxy",1);const PORT=process.env.PORT||3000;const DATA=process.env.DATA_FILE||path.join(__dirname,"data.json");
 const ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||"";const SESSION_SECRET=process.env.SESSION_SECRET||"";
 if(!ADMIN_PASSWORD||ADMIN_PASSWORD.length<14||!SESSION_SECRET||SESSION_SECRET.length<32){console.error("Set ADMIN_PASSWORD (14+ chars) and SESSION_SECRET (32+ chars) before starting.");process.exit(1)}
 app.disable("x-powered-by");app.use(helmet({contentSecurityPolicy:false}));app.use(express.json({limit:"1mb"}));app.use(express.urlencoded({extended:false,limit:"1mb"}));

@@ -28,13 +28,20 @@ app.get("/api/playlist-info",auth,(req,res)=>{const key=process.env.PLAYLIST_KEY
 app.get("/playlist.m3u",playlist);app.get("/api/export.m3u",auth,(req,res)=>res.type("application/x-mpegURL").attachment("MBTV.m3u").send(buildPlaylist()));
 app.use(express.static(path.join(__dirname,"public"),{extensions:["html"]}));app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
 async function start(){if(pool){await pool.query("CREATE TABLE IF NOT EXISTS mbtv_state(id INTEGER PRIMARY KEY CHECK(id=1),payload JSONB NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");const r=await pool.query("SELECT payload FROM mbtv_state WHERE id=1");if(r.rows[0])db=r.rows[0].payload;else await persist()}
-if(db.items.length===0){
-  const now=new Date().toISOString();
-  db.items=[
-    {id:"demo-hls-test",name:"قناة اختبار HLS (تجريبية وليست قناة تلفزيونية)",url:"https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",type:"live",group:"تجريبي - قابل للحذف",poster:"",demo:true,createdAt:now},
-    {id:"demo-big-buck-bunny",name:"Big Buck Bunny - فيلم تجريبي مفتوح",url:"https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",type:"movies",group:"تجريبي - قابل للحذف",poster:"",demo:true,createdAt:now},
-    {id:"demo-elephants-dream",name:"Elephants Dream - فيلم تجريبي مفتوح",url:"https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",type:"movies",group:"تجريبي - قابل للحذف",poster:"",demo:true,createdAt:now}
-  ];
-  await persist();
+// Safe, clearly labelled playback-test samples. These are not live TV channels.
+const demoSamples=[
+  {id:"demo-hls-test",name:"اختبار بث HLS - Mux (تجريبي)",url:"https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",type:"live",group:"اختبارات تقنية",poster:"",demo:true},
+  {id:"demo-tears-of-steel",name:"Tears of Steel - فيلم تجريبي",url:"https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",type:"movies",group:"أفلام تجريبية",poster:"",demo:true},
+  {id:"demo-sintel",name:"Sintel - فيلم تجريبي",url:"https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8",type:"movies",group:"أفلام تجريبية",poster:"",demo:true}
+];
+const now=new Date().toISOString();
+let changed=false;
+for(const sample of demoSamples){
+  const existing=db.items.find(x=>x.id===sample.id);
+  if(!existing){db.items.push({...sample,createdAt:now});changed=true;}
+  else if(existing.url!==sample.url){existing.url=sample.url;existing.name=sample.name;existing.type=sample.type;existing.group=sample.group;changed=true;}
 }
+if(!db.groups.includes("اختبارات تقنية")){db.groups.push("اختبارات تقنية");changed=true;}
+if(!db.groups.includes("أفلام تجريبية")){db.groups.push("أفلام تجريبية");changed=true;}
+if(changed)await persist();
 app.listen(PORT,"0.0.0.0",()=>console.log("MBTV listening on "+PORT))}start().catch(e=>{console.error("MBTV startup failed",e);process.exit(1)});

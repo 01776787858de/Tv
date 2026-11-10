@@ -1,0 +1,19 @@
+{
+  "name": "mbtv-panel",
+  "version": "2.0.0",
+  "private": true,
+  "description": "MBTV IPTV content management panel",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0"
+  }
+}

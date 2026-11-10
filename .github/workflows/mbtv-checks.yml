@@ -3,7 +3,7 @@ on:
   push:
     branches: [mbtv-redesign]
   pull_request:
-    branches: [mbtv-redesign]
+    branches: [main]
 jobs:
   syntax:
     runs-on: ubuntu-latest

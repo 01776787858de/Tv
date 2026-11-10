@@ -1,0 +1,1 @@
+const fs=require("fs");const html=fs.readFileSync("public/index.html","utf8");const matches=[...html.matchAll(/<script>([\s\S]*?)<\/script>/gi)];if(!matches.length)throw new Error("No inline script found");for(const m of matches)new Function(m[1]);console.log("Frontend JavaScript syntax OK");

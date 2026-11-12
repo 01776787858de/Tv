@@ -17,7 +17,7 @@ function memberToken(id,exp){const payload=Buffer.from(JSON.stringify({id,exp}))
 function memberFromRequest(req){const raw=cookieValue(req,"mbtv_member");if(!raw)return null;const [payload,sig]=raw.split(".");if(!payload||!sig)return null;const expected=Buffer.from(sign("member:"+payload)),got=Buffer.from(sig);if(expected.length!==got.length||!crypto.timingSafeEqual(expected,got))return null;try{const p=JSON.parse(Buffer.from(payload,"base64url").toString());if(p.exp<=Date.now())return null;const m=db.members.find(x=>x.id===p.id);if(!m||!m.active||new Date(m.expiresAt).getTime()<=Date.now())return null;return m}catch{return null}}
 function memberAuth(req,res,next){const m=memberFromRequest(req);if(!m)return res.status(401).json({error:"الاشتراك غير نشط أو انتهت صلاحيته"});req.member=m;next()}
 function passwordHash(password,salt){return crypto.scryptSync(password,salt,64).toString("hex")}
-function makeCredentials(){const username="mbtv-"+crypto.randomBytes(4).toString("hex");const password=crypto.randomBytes(12).toString("base64url");return {username,password}}
+function makeCredentials(){const username="mbtv"+crypto.randomBytes(4).toString("hex");const password=crypto.randomBytes(12).toString("base64url");return {username,password}}
 
 
 app.get("/api/health",(req,res)=>res.json({ok:true,service:"MBTV",time:new Date().toISOString()}));

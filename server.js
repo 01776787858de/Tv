@@ -46,6 +46,45 @@ function buildPlaylist(){let out="#EXTM3U\n";for(const x of db.items){const type
 function playlist(req,res){const key=String(req.query.key||"");const expected=process.env.PLAYLIST_KEY||"";const a=Buffer.from(key),b=Buffer.from(expected);if(!b.length||a.length!==b.length||!crypto.timingSafeEqual(a,b))return res.status(403).send("Forbidden");res.type("application/x-mpegURL").send(buildPlaylist())}
 app.get("/api/playlist-info",auth,(req,res)=>{const key=process.env.PLAYLIST_KEY||"";if(!key)return res.status(503).json({error:"لم يتم إعداد مفتاح قائمة التشغيل"});const base=req.headers["x-forwarded-proto"]==="https"?"https":"http";res.json({url:base+"://"+req.get("host")+"/playlist.m3u?key="+encodeURIComponent(key)})});
 app.get("/playlist.m3u",playlist);app.get("/api/export.m3u",auth,(req,res)=>res.type("application/x-mpegURL").attachment("MBTV.m3u").send(buildPlaylist()));
+
+/* Xtream Codes-compatible API for each active MBTV member. */
+const xtreamLimiter=rateLimit({windowMs:15*60*1000,limit:90,standardHeaders:true,legacyHeaders:false});
+function xtreamMember(req,res,next){
+  const username=String(req.query.username||req.body?.username||"").trim();
+  const password=String(req.query.password||req.body?.password||"");
+  const m=db.members.find(x=>x.username===username);
+  if(!m||!m.active||new Date(m.expiresAt).getTime()<=Date.now())return res.status(401).json({user_info:{auth:0,status:"Disabled"},server_info:{}});
+  const got=Buffer.from(passwordHash(password,m.salt),"hex"),expected=Buffer.from(m.passwordHash,"hex");
+  if(got.length!==expected.length||!crypto.timingSafeEqual(got,expected))return res.status(401).json({user_info:{auth:0,status:"Disabled"},server_info:{}});
+  req.xtreamMember=m;next();
+}
+function xtreamBase(req){return (req.headers["x-forwarded-proto"]==="https"||req.secure?"https":"http")+"://"+req.get("host")}
+function xtreamItems(type){return db.items.map((item,index)=>({...item,_id:index+1})).filter(item=>type==="live"?!["movies","series"].includes(item.type):item.type===type)}
+function xtreamCategoryIds(items){const names=[...new Set(items.map(x=>String(x.group||"عام")))];return new Map(names.map((name,index)=>[name,index+1]))}
+function xtreamUserInfo(m){return {username:m.username,password:"",message:"",auth:1,status:"Active",exp_date:String(Math.floor(new Date(m.expiresAt).getTime()/1000)),is_trial:"0",active_cons:"0",created_at:String(Math.floor(new Date(m.createdAt).getTime()/1000)),max_connections:"1",allowed_output_formats:["ts","m3u8"]}}
+function xtreamServerInfo(req){return {url:req.get("host"),port:req.socket.localPort||443,https_port:req.socket.localPort||443,server_protocol:req.headers["x-forwarded-proto"]==="https"?"https":"http",timezone:"Europe/Berlin",timestamp_now:Math.floor(Date.now()/1000),time_now:new Date().toISOString()}}
+function xtreamCategories(items){const ids=xtreamCategoryIds(items);return [...ids.entries()].map(([name,id])=>({category_id:String(id),category_name:name,parent_id:0}))}
+function xtreamStreams(req,items,kind){const ids=xtreamCategoryIds(items),base=xtreamBase(req),m=req.xtreamMember;return items.map(x=>({num:x._id,name:x.name,stream_type:kind,stream_id:x._id,stream_icon:x.poster||"",epg_channel_id:null,added:String(Math.floor(new Date(x.createdAt||Date.now()).getTime()/1000)),category_id:String(ids.get(String(x.group||"عام"))),custom_sid:"",direct_source:"",tv_archive:0,tv_archive_duration:0,container_extension:"ts", ...(kind==="live"?{stream_url:base+"/live/"+encodeURIComponent(m.username)+"/"+encodeURIComponent("__PASS__")+"/"+x._id+".ts"}:{})}))}
+function xtreamPlaylist(req,items){const base=xtreamBase(req),m=req.xtreamMember,u=encodeURIComponent(m.username),p=encodeURIComponent(String(req.query.password||""));let out="#EXTM3U\n";for(const x of items){const kind=["movies","series"].includes(x.type)?x.type:"live";const route=kind==="movies"?"movie":kind==="series"?"series":"live";out+='#EXTINF:-1 tvg-name="'+String(x.name||"").replace(/["\r\n]/g,"")+'" group-title="'+String(x.group||"عام").replace(/["\r\n]/g,"")+'",'+String(x.name||"بدون اسم").replace(/[\r\n]/g,"")+"\n"+base+"/"+route+"/"+u+"/"+p+"/"+x._id+".ts\n"}return out}
+app.get(["/player_api.php","/player_api"],xtreamLimiter,xtreamMember,(req,res)=>{
+  const action=String(req.query.action||"");
+  if(!action)return res.json({user_info:xtreamUserInfo(req.xtreamMember),server_info:xtreamServerInfo(req)});
+  const live=xtreamItems("live"),vod=xtreamItems("movies"),series=xtreamItems("series");
+  if(action==="get_live_categories")return res.json(xtreamCategories(live));
+  if(action==="get_vod_categories")return res.json(xtreamCategories(vod));
+  if(action==="get_series_categories")return res.json(xtreamCategories(series));
+  if(action==="get_live_streams")return res.json(xtreamStreams(req,live,"live"));
+  if(action==="get_vod_streams")return res.json(xtreamStreams(req,vod,"movie"));
+  if(action==="get_series")return res.json(xtreamStreams(req,series,"series"));
+  if(action==="get_vod_info"||action==="get_series_info"){const id=Number(req.query.vod_id||req.query.series_id);const item=db.items[id-1];if(!item)return res.status(404).json({});return res.json({info:{name:item.name,cover:item.poster||"",plot:""},movie_data:{stream_id:id,name:item.name,container_extension:"ts"}})}
+  return res.json([]);
+});
+app.get("/get.php",xtreamLimiter,xtreamMember,(req,res)=>{const type=String(req.query.type||"m3u_plus");if(!["m3u","m3u_plus"].includes(type))return res.status(400).send("Unsupported playlist type");res.type("application/x-mpegURL").send(xtreamPlaylist(req,db.items.map((item,index)=>({...item,_id:index+1}))))});
+function xtreamStream(req,res){const id=Number(req.params.id),item=db.items[id-1];if(!item||!validUrl(item.url))return res.status(404).send("Stream not found");res.redirect(302,item.url)}
+app.get("/live/:username/:password/:id",xtreamLimiter,(req,res,next)=>{req.query.username=req.params.username;req.query.password=req.params.password;next()},xtreamMember,xtreamStream);
+app.get("/movie/:username/:password/:id",xtreamLimiter,(req,res,next)=>{req.query.username=req.params.username;req.query.password=req.params.password;next()},xtreamMember,xtreamStream);
+app.get("/series/:username/:password/:id",xtreamLimiter,(req,res,next)=>{req.query.username=req.params.username;req.query.password=req.params.password;next()},xtreamMember,xtreamStream);
+
 app.use(express.static(path.join(__dirname,"public"),{extensions:["html"]}));app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
 async function start(){if(pool){await pool.query("CREATE TABLE IF NOT EXISTS mbtv_state(id INTEGER PRIMARY KEY CHECK(id=1),payload JSONB NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");const r=await pool.query("SELECT payload FROM mbtv_state WHERE id=1");if(r.rows[0])db=r.rows[0].payload;else await persist();if(!Array.isArray(db.members))db.members=[];for(const m of db.members)if(!Array.isArray(m.favorites))m.favorites=[]}
 // Safe, clearly labelled playback-test samples. These are not live TV channels.

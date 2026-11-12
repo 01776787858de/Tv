@@ -26,6 +26,13 @@ test("MBTV API login, content CRUD and M3U import/export",async t=>{
   const exp=await fetch(base+"/api/export.m3u",{headers:{cookie}});assert.equal(exp.status,200);const playlist=await exp.text();assert.ok(playlist.startsWith("#EXTM3U"));assert.ok(playlist.includes("Updated Channel"));assert.ok(playlist.includes("News One"));
   const publicDenied=await fetch(base+"/playlist.m3u?key=wrong");assert.equal(publicDenied.status,403);
   const publicOk=await fetch(base+"/playlist.m3u?key="+env.PLAYLIST_KEY);assert.equal(publicOk.status,200);
+  const created=await fetch(base+"/api/admin/members",{method:"POST",headers:{"content-type":"application/json",cookie},body:JSON.stringify({days:30})});assert.equal(created.status,201);const memberData=await created.json();assert.match(memberData.credentials.username,/^mbtv-/);assert.ok(memberData.credentials.password.length>=12);
+  const memberLogin=await fetch(base+"/api/member/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(memberData.credentials)});assert.equal(memberLogin.status,200);const memberCookie=memberLogin.headers.get("set-cookie").split(";")[0];
+  const memberMe=await fetch(base+"/api/member/me",{headers:{cookie:memberCookie}});assert.equal(memberMe.status,200);
+  const catalog=await fetch(base+"/api/catalog",{headers:{cookie:memberCookie}});assert.equal(catalog.status,200);assert.ok((await catalog.json()).items.some(x=>x.name==="Updated Channel"));
+  const memberList=await fetch(base+"/api/admin/members",{headers:{cookie}});assert.equal(memberList.status,200);const members=(await memberList.json()).members;assert.equal(members.length,1);assert.equal(Object.hasOwn(members[0],"passwordHash"),false);
+  const disabled=await fetch(base+"/api/admin/members/"+memberData.member.id,{method:"PATCH",headers:{"content-type":"application/json",cookie},body:JSON.stringify({active:false})});assert.equal(disabled.status,200);
+  const blockedCatalog=await fetch(base+"/api/catalog",{headers:{cookie:memberCookie}});assert.equal(blockedCatalog.status,401);
   const del=await fetch(base+"/api/items/"+item.id,{method:"DELETE",headers:{cookie}});assert.equal(del.status,200);
   const after=await fetch(base+"/api/items",{headers:{cookie}});assert.equal(after.status,200);assert.equal((await after.json()).items.length,1);
  }finally{child.kill("SIGTERM");fs.rmSync(dir,{recursive:true,force:true})}

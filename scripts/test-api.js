@@ -26,8 +26,14 @@ test("MBTV API login, content CRUD and M3U import/export",async t=>{
   const exp=await fetch(base+"/api/export.m3u",{headers:{cookie}});assert.equal(exp.status,200);const playlist=await exp.text();assert.ok(playlist.startsWith("#EXTM3U"));assert.ok(playlist.includes("Updated Channel"));assert.ok(playlist.includes("News One"));
   const publicDenied=await fetch(base+"/playlist.m3u?key=wrong");assert.equal(publicDenied.status,403);
   const publicOk=await fetch(base+"/playlist.m3u?key="+env.PLAYLIST_KEY);assert.equal(publicOk.status,200);
-  const created=await fetch(base+"/api/admin/members",{method:"POST",headers:{"content-type":"application/json",cookie},body:JSON.stringify({days:30})});assert.equal(created.status,201);const memberData=await created.json();assert.match(memberData.credentials.username,/^mbtv-/);assert.ok(memberData.credentials.password.length>=12);
+  const created=await fetch(base+"/api/admin/members",{method:"POST",headers:{"content-type":"application/json",cookie},body:JSON.stringify({days:30})});assert.equal(created.status,201);const memberData=await created.json();assert.match(memberData.credentials.username,/^mbtv[a-f0-9]{8}$/);assert.ok(memberData.credentials.password.length>=12);
   const memberLogin=await fetch(base+"/api/member/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(memberData.credentials)});assert.equal(memberLogin.status,200);const memberCookie=memberLogin.headers.get("set-cookie").split(";")[0];
+  const xtreamBase=base+"/player_api.php?username="+encodeURIComponent(memberData.credentials.username)+"&password="+encodeURIComponent(memberData.credentials.password);
+  const xtreamInfo=await fetch(xtreamBase);assert.equal(xtreamInfo.status,200);const xtInfo=await xtreamInfo.json();assert.equal(xtInfo.user_info.auth,1);assert.equal(xtInfo.user_info.username,memberData.credentials.username);
+  const xtLive=await fetch(xtreamBase+"&action=get_live_streams");assert.equal(xtLive.status,200);assert.ok((await xtLive.json()).some(x=>x.name==="Updated Channel"));
+  const xtM3u=await fetch(base+"/get.php?username="+encodeURIComponent(memberData.credentials.username)+"&password="+encodeURIComponent(memberData.credentials.password)+"&type=m3u_plus&output=mpegts");assert.equal(xtM3u.status,200);const xtPlaylist=await xtM3u.text();assert.ok(xtPlaylist.startsWith("#EXTM3U"));assert.ok(xtPlaylist.includes("/live/"));
+  const xtBad=await fetch(base+"/player_api.php?username="+encodeURIComponent(memberData.credentials.username)+"&password=wrong");assert.equal(xtBad.status,401);
+
   const memberMe=await fetch(base+"/api/member/me",{headers:{cookie:memberCookie}});assert.equal(memberMe.status,200);
   const catalog=await fetch(base+"/api/catalog",{headers:{cookie:memberCookie}});assert.equal(catalog.status,200);assert.ok((await catalog.json()).items.some(x=>x.name==="Updated Channel"));
   const favEmpty=await fetch(base+"/api/member/favorites",{headers:{cookie:memberCookie}});assert.equal(favEmpty.status,200);assert.deepEqual((await favEmpty.json()).favorites,[]);

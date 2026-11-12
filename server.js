@@ -48,6 +48,7 @@ app.use(express.static(path.join(__dirname,"public"),{extensions:["html"]}));app
 async function start(){if(pool){await pool.query("CREATE TABLE IF NOT EXISTS mbtv_state(id INTEGER PRIMARY KEY CHECK(id=1),payload JSONB NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");const r=await pool.query("SELECT payload FROM mbtv_state WHERE id=1");if(r.rows[0])db=r.rows[0].payload;else await persist();if(!Array.isArray(db.members))db.members=[]}
 // Safe, clearly labelled playback-test samples. These are not live TV channels.
 const demoSamples=[
+  {id:"demo-youtube-bunny",name:"YouTube - فيديو تجريبي (Big Buck Bunny)",url:"https://www.youtube.com/watch?v=aqz-KE-bpKQ",type:"youtube",group:"يوتيوب تجريبي",poster:"",demo:true},
   {id:"demo-hls-test",name:"اختبار بث HLS - Mux (تجريبي)",url:"https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",type:"live",group:"اختبارات تقنية",poster:"",demo:true},
   {id:"demo-tears-of-steel",name:"Tears of Steel - فيلم تجريبي",url:"https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",type:"movies",group:"أفلام تجريبية",poster:"",demo:true},
   {id:"demo-sintel",name:"Sintel - فيلم تجريبي",url:"https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8",type:"movies",group:"أفلام تجريبية",poster:"",demo:true}

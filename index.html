@@ -1,292 +1,56 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>منصة أبو سعيد للبث المباشر 📺</title>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <style>
-        :root {
-            --bg-dark: #090d16;
-            --panel-bg: #111827;
-            --primary: #3b82f6;
-            --text-main: #f3f4f6;
-            --text-muted: #9ca3af;
-            --border: #1f2937;
-            --active-channel: #ef4444;
-            --success: #10b981;
-        }
-        
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-dark); color: var(--text-main); margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        /* الهيدر العلوي */
-        .header { background: var(--panel-bg); padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); height: 60px; z-index: 10; }
-        .header h1 { margin: 0; color: var(--primary); font-size: 18px; display: flex; align-items: center; gap: 8px; }
-        
-        /* زر إخفاء وإظهار القنوات في الجوال */
-        .toggle-menu-btn { background: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; font-size: 13px; cursor: pointer; }
-
-        /* الحاوية الرئيسية للمنصة */
-        .tv-container { display: flex; flex: 1; height: calc(100vh - 60px); position: relative; overflow: hidden; }
-        
-        /* 🎥 قسم مشغل الفيديو */
-        .video-section { flex: 1; background: #000; display: flex; align-items: center; justify-content: center; position: relative; height: 100%; }
-        video { width: 100%; height: 100%; background: #000; object-fit: contain; }
-        
-        /* 📋 قسم قائمة القنوات (البانيل الجانبي) */
-        .channels-sidebar { width: 320px; display: flex; flex-direction: column; background: var(--panel-bg); border-right: 1px solid var(--border); height: 100%; transition: transform 0.3s ease; z-index: 5; }
-        
-        .search-box { padding: 12px; border-bottom: 1px solid var(--border); }
-        .search-box input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-dark); color: white; outline: none; font-size: 14px; text-align: right; }
-        
-        .channels-list { flex: 1; overflow-y: auto; padding: 8px; -webkit-overflow-scrolling: touch; }
-        .channel-item { display: flex; align-items: center; justify-content: space-between; padding: 10px; margin-bottom: 6px; border-radius: 8px; cursor: pointer; background: var(--bg-dark); transition: 0.2s; border: 1px solid transparent; }
-        .channel-main { display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden; }
-        .channel-item:hover { background: #1f2937; }
-        .channel-item.active { background: var(--active-channel); font-weight: bold; border-color: #f87171; }
-        .channel-logo { width: 35px; height: 35px; border-radius: 50%; object-fit: contain; background: #fff; padding: 2px; }
-        .channel-name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
-        .btn-del-ch { background: #dc2626; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; display: none; }
-
-        /* 🔒 بانيل لوحة التحكم بأسفل القائمة الجانبية */
-        .admin-box { background: var(--bg-dark); padding: 12px; border-top: 1px dashed var(--primary); }
-        .admin-fields { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-        .admin-fields input { padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-bg); color: white; font-size: 13px; }
-        .admin-btn { background: var(--primary); color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
-
-        #toast { position: fixed; bottom: 15px; left: 15px; background: #10b981; color: white; padding: 10px 20px; border-radius: 6px; font-weight: bold; font-size: 13px; display: none; z-index: 9999; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-
-        /* 📱 تفاصيل التكيف مع شاشات الجوال (آيفون وأندرويد) */
-        @media (max-width: 768px) {
-            .tv-container { flex-direction: column; }
-            .video-section { height: 40%; flex: none; }
-            .channels-sidebar { width: 100%; height: 60%; position: absolute; bottom: 0; left: 0; transform: translateY(0); }
-            /* عند تفعيل وضع ملء الشاشة للفيديو بالجوال */
-            .tv-container.hide-menu .video-section { height: 100%; }
-            .tv-container.hide-menu .channels-sidebar { transform: translateY(100%); }
-        }
-        
-        /* عند قلب الجوال بالعرض لمشاهدة المباراة */
-        @media (max-width: 900px) and (orientation: landscape) {
-            .header { display: none; }
-            .tv-container { height: 100vh; flex-direction: row; }
-            .video-section { height: 100%; width: 100%; }
-            .channels-sidebar { position: absolute; right: 0; top: 0; width: 280px; height: 100%; transform: translateX(100%); }
-            .tv-container.hide-menu .channels-sidebar { transform: translateX(100%); }
-            /* فتح القائمة بالعرض */
-            .tv-container:not(.hide-menu) .channels-sidebar { transform: translateX(0); }
-        }
-    </style>
-</head>
-<body>
-
-    <div id="toast"></div>
-
-    <div class="header">
-        <h1>📺 منصة البث المباشر</h1>
-        <button class="toggle-menu-btn" onclick="toggleMenu()">📱 إخفاء/إظهار القنوات</button>
-    </div>
-
-    <div class="tv-container" id="tvContainer">
-        <div class="video-section">
-            <video id="videoPlayer" controls autoplay playsinline webkit-playsinline></video>
-        </div>
-
-        <div class="channels-sidebar">
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="🔍 ابحث عن قناة..." onkeyup="filterChannels()">
-            </div>
-            
-            <div class="channels-list" id="channelsList">
-                <div style="text-align:center; padding: 20px; color: var(--text-muted); font-size:13px;">⏳ جاري تحديث القنوات...</div>
-            </div>
-
-            <div class="admin-box">
-                <div id="loginForm">
-                    <input type="password" id="tokenInput" placeholder="أدخل رمز الـ Token لفتح البانيل" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--border); background:var(--panel-bg); color:white;">
-                    <button onclick="loginAdmin()" style="width:100%; margin-top:5px; padding:6px; background:var(--success); border:none; color:white; border-radius:6px; cursor:pointer; font-weight:bold;">دخول البانيل 🔑</button>
-                </div>
-                
-                <div id="addForm" style="display:none;">
-                    <span style="font-size:12px; color:var(--success); font-weight:bold;">✨ إضافة رابط بث مباشر:</span>
-                    <div class="admin-fields">
-                        <input type="text" id="chName" placeholder="اسم القناة">
-                        <input type="text" id="chUrl" placeholder="رابط البث (m3u8)" style="direction:ltr;">
-                        <input type="text" id="chLogo" placeholder="رابط الشعار (اختياري)" style="direction:ltr;">
-                        <button class="admin-btn" onclick="addChannel()">حفظ القناة بالسيرفر 🚀</button>
-                        <button onclick="logoutAdmin()" style="background:#4b5563; color:white; border:none; padding:4px; border-radius:4px; font-size:11px; cursor:pointer;">قفل البانيل 🔒</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const OWNER = "01776787858de";
-        const REPO = "tv"; // اسم مستودع التلفزيون الحالي
-        const FILE_PATH = "channels.json";
-
-        let channelsArray = [];
-        let fileSHA = null;
-        const video = document.getElementById('videoPlayer');
-        const hls = new Hls({ maxMaxBufferLength: 10 }); // تحسين ذاكرة التخزين المؤقت للجوال
-
-        function showToast(msg, isError = false) {
-            const t = document.getElementById('toast');
-            t.style.backgroundColor = isError ? '#dc2626' : '#10b981';
-            t.innerText = msg;
-            t.style.display = 'block';
-            setTimeout(() => { t.style.display = 'none'; }, 3000);
-        }
-
-        // إخفاء وإظهار القنوات لتكبير حجم البث في الجوال
-        function toggleMenu() {
-            document.getElementById('tvContainer').classList.toggle('hide-menu');
-        }
-
-        window.onload = function() {
-            loadChannelsFromServer();
-            checkAdminStatus();
-        };
-
-        async function loadChannelsFromServer() {
-            const container = document.getElementById('channelsList');
-            try {
-                const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, { cache: 'no-store' });
-                if(res.status === 404) {
-                    container.innerHTML = "<p style='text-align:center; font-size:12px; color:var(--text-muted);'>لا توجد قنوات مضافة، افتح البanيل بالأسفل وضف أول قناة!</p>";
-                    return;
-                }
-                const data = await res.json();
-                fileSHA = data.sha;
-                channelsArray = JSON.parse(atob(data.content));
-                renderChannels();
-            } catch(e) {
-                container.innerHTML = "<p style='text-align:center; color:#dc2626; font-size:12px;'>خطأ في الاتصال بالسيرفر.</p>";
-            }
-        }
-
-        function renderChannels() {
-            const container = document.getElementById('channelsList');
-            container.innerHTML = "";
-            const isAdmin = document.getElementById('addForm').style.display === 'block';
-
-            if(channelsArray.length === 0) {
-                container.innerHTML = "<p style='text-align:center; font-size:12px; color:var(--text-muted);'>القائمة فارغة.</p>";
-                return;
-            }
-
-            channelsArray.forEach((ch, index) => {
-                const item = document.createElement('div');
-                item.className = 'channel-item';
-                
-                const logoHTML = ch.logo ? `<img src="${ch.logo}" class="channel-logo" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'35\' height=\'35\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'><rect x=\'2\' y=\'7\' width=\'20\' height=\'15\' rx=\'2\'/><polyline points=\'17 2 12 7 7 2\'/></svg>'">` : `<div class="channel-logo" style="display:flex;align-items:center;justify-content:center;color:#000;font-size:16px;">📺</div>`;
-                
-                item.innerHTML = `
-                    <div class="channel-main" onclick="playChannel('${ch.url}', this)">
-                        ${logoHTML}
-                        <div class="channel-name">${ch.name}</div>
-                    </div>
-                    <button class="btn-del-ch" style="display: ${isAdmin ? 'block' : 'none'};" onclick="deleteChannel(${index})">حذف 🗑️</button>
-                `;
-                container.appendChild(item);
-            });
-        }
-
-        function playChannel(url, element) {
-            document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
-            element.parentElement.classList.add('active');
-
-            // إخفاء القائمة تلقائياً في الجوال عند اختيار قناة لتبدأ المشاهدة فوراً
-            if(window.innerWidth <= 768) { toggleMenu(); }
-
-            if (Hls.isSupported()) {
-                hls.loadSource(url); hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                // مشغل الآيفون الأصلي (Safari iOS)
-                video.src = url; 
-                video.play();
-            } else {
-                showToast("هذا البث غير مدعوم على متصفحك الحالي", true);
-            }
-        }
-
-        function filterChannels() {
-            const q = document.getElementById('searchInput').value.toLowerCase();
-            document.querySelectorAll('.channel-item').forEach(item => {
-                const name = item.querySelector('.channel-name').innerText.toLowerCase();
-                item.style.display = name.includes(q) ? 'flex' : 'none';
-            });
-        }
-
-        function loginAdmin() {
-            const token = document.getElementById('tokenInput').value.trim();
-            if(!token) return showToast("أدخل الرمز أولاً!", true);
-            localStorage.setItem('tv_token', token);
-            checkAdminStatus();
-            showToast("تم فتح بانيل التحكم!");
-        }
-
-        function logoutAdmin() {
-            localStorage.removeItem('tv_token');
-            location.reload();
-        }
-
-        function checkAdminStatus() {
-            const token = localStorage.getItem('tv_token');
-            if(token) {
-                document.getElementById('loginForm').style.display = 'none';
-                document.getElementById('addForm').style.display = 'block';
-                document.querySelectorAll('.btn-del-ch').forEach(b => b.style.display = 'block');
-                renderChannels();
-            }
-        }
-
-        async function addChannel() {
-            const token = localStorage.getItem('tv_token');
-            const name = document.getElementById('chName').value.trim();
-            const url = document.getElementById('chUrl').value.trim();
-            const logo = document.getElementById('chLogo').value.trim();
-
-            if(!name || !url) return showToast("الرجاء إدخال الاسم ورابط الـ m3u8", true);
-
-            channelsArray.push({ name, url, logo });
-            await saveToGitHub(token, `Add channel: ${name}`);
-        }
-
-        async function deleteChannel(index) {
-            if(!confirm("حذف هذه القناة؟")) return;
-            const token = localStorage.getItem('tv_token');
-            channelsArray.splice(index, 1);
-            await saveToGitHub(token, "Delete channel");
-        }
-
-        async function saveToGitHub(token, msg) {
-            const base64Content = btoa(unescape(encodeURIComponent(JSON.stringify(channelsArray, null, 2))));
-            const bodyData = { message: msg, content: base64Content };
-            if(fileSHA) bodyData.sha = fileSHA;
-
-            try {
-                const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
-                    method: "PUT",
-                    headers: { "Authorization": `token ${token}`, "Content-Type": "application/json" },
-                    body: JSON.stringify(bodyData)
-                });
-
-                if(res.ok) {
-                    showToast("تم الحفظ وتحديث السيرفر! 🎉");
-                    document.getElementById('chName').value = "";
-                    document.getElementById('chUrl').value = "";
-                    document.getElementById('chLogo').value = "";
-                    loadChannelsFromServer();
-                } else {
-                    showToast("فشل الحفظ، تأكد من صلاحية التوكن.", true);
-                }
-            } catch(e) { showToast("خطأ في الاتصال.", true); }
-        }
-    </script>
-</body>
-</html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0d20">
+<title>MBTV | IPTV Panel</title>
+<style>
+:root{--bg:#0b0d20;--side:#101126;--panel:#171a35;--line:#303454;--text:#f5f4ff;--muted:#a9acc8;--purple:#7b39ef;--cyan:#21c4df;--pink:#d64caa;--red:#d84958;--gold:#e5bd68}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 70% -20%,#38216b 0,transparent 38%),var(--bg);color:var(--text);font-family:Tahoma,Arial,sans-serif}button,input,select{font:inherit}button{cursor:pointer}.app{display:grid;grid-template-columns:252px minmax(0,1fr);min-height:100vh}.sidebar{background:linear-gradient(180deg,#12132c,#0e1023);border-left:1px solid var(--line);padding:22px 14px;display:flex;flex-direction:column;gap:18px}.brand{display:flex;align-items:center;gap:12px;padding:0 7px 20px;border-bottom:1px solid #292b49}.logo{width:48px;height:48px;border:4px solid var(--cyan);border-radius:13px;display:grid;place-items:center;color:#df62e9;font-size:25px;box-shadow:0 0 20px #21c4df44}.brand b{font-size:23px;letter-spacing:1px}.brand small{display:block;color:#b8b4d2;font-size:12px;margin-top:3px}.nav{display:grid;gap:5px}.nav button{border:0;background:transparent;color:#d1d1e3;text-align:right;padding:12px 13px;border-radius:11px;font-size:14px}.nav button span{display:inline-block;width:29px;font-size:17px}.nav button.active,.nav button:hover{background:linear-gradient(100deg,#883ef1,#5225b9);color:white;box-shadow:0 5px 18px #6d36d744}.navtitle{font-size:11px;color:#777b9e;padding:7px 12px 2px}.sidefoot{margin-top:auto;text-align:center;color:#777b9e;font-size:11px;border-top:1px solid #292b49;padding-top:15px}.main{padding:22px;min-width:0}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}.status{background:#102b2a;color:#70e9b8;border-radius:20px;padding:8px 13px;font-size:12px}.topright{display:flex;gap:10px;align-items:center}.admin{background:#1b1e39;border:1px solid var(--line);border-radius:12px;padding:9px 14px}.stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:17px}.stat{background:linear-gradient(140deg,#202341,#171a32);border:1px solid #343858;border-radius:13px;padding:13px;min-width:0}.stat .ico{font-size:21px;float:right;margin-left:8px}.stat small{color:#b5b6d0;font-size:11px}.stat strong{display:block;font-size:22px;margin-top:8px}.hero{background:linear-gradient(105deg,#30155c,#5123a5 55%,#1d426a);border:1px solid #7744d1;border-radius:16px;padding:22px 25px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:15px;overflow:hidden}.hero h1{font-size:25px;margin:0 0 8px}.hero p{margin:0;color:#e0d8f6;font-size:13px}.hero .bigicon{font-size:60px;color:#f2a6ff}.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.tile{border-radius:15px;padding:16px;border:1px solid #ffffff28;min-height:122px;display:flex;flex-direction:column;justify-content:space-between}.tile strong{font-size:16px}.tile small{opacity:.85}.tile button{border:0;border-radius:8px;padding:8px;background:#ffffff25;color:white}.live{background:linear-gradient(130deg,#087c98,#12435d)}.movies{background:linear-gradient(130deg,#a72f56,#501c4e)}.series{background:linear-gradient(130deg,#8d27b7,#40165f)}.youtube{background:linear-gradient(130deg,#d94b25,#722b2c)}.columns{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.95fr);gap:13px}.panel{background:linear-gradient(145deg,#191c37,#14172e);border:1px solid #343858;border-radius:15px;padding:15px;min-width:0}.panelhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:13px}.panelhead h2{font-size:16px;margin:0}.pill{font-size:10px;background:#38265e;color:#d9b9ff;border-radius:30px;padding:5px 9px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.tabs button,.btn{border:1px solid #3b3e61;background:#222541;color:white;border-radius:9px;padding:9px 12px}.tabs button.active,.btn.primary{background:linear-gradient(100deg,#843cf0,#5d37d5);border-color:transparent}.field{background:#252945;border:1px solid #444969;color:white;border-radius:8px;padding:10px;width:100%;min-width:0}.field::placeholder{color:#a5a8c2}.formgrid{display:grid;gap:9px}.formgrid label{display:grid;gap:6px;color:#c4c5db;font-size:12px}.formrow{display:grid;grid-template-columns:1fr 1fr;gap:9px}.list{display:grid;gap:8px;max-height:330px;overflow:auto}.item{display:flex;align-items:center;gap:9px;background:#10152a;border:1px solid #2c3452;border-radius:10px;padding:9px}.item .symbol{width:38px;height:38px;border-radius:9px;background:#292d50;display:grid;place-items:center;font-size:20px;flex-shrink:0}.iteminfo{flex:1;min-width:0}.iteminfo b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.iteminfo small{font-size:11px;color:var(--muted)}.mini{border:0;background:#342344;color:#ffc0d4;padding:7px 9px;border-radius:7px}.section{display:none}.section.active{display:block}.cards4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.contentcard{background:#10152a;border:1px solid #303655;border-radius:12px;padding:14px;text-align:center}.contentcard .symbol{font-size:27px}.contentcard b{display:block;margin:7px 0}.contentcard small{color:var(--muted)}.notice{color:#aeb2cf;font-size:11px;line-height:1.8;background:#10152a;border:1px dashed #454a70;border-radius:10px;padding:11px;margin-top:12px}.empty{padding:25px;text-align:center;color:#9298b8;font-size:13px}.linkbox{direction:ltr;text-align:left;overflow:auto;white-space:nowrap}.toast{position:fixed;bottom:20px;left:20px;background:#177e69;padding:11px 16px;border-radius:9px;display:none;z-index:5}
+@media(max-width:1100px){.stats{grid-template-columns:repeat(3,1fr)}.columns{grid-template-columns:1fr}}@media(max-width:760px){.app{grid-template-columns:1fr}.sidebar{padding:12px;gap:10px}.brand{padding-bottom:10px}.nav{display:flex;overflow:auto}.navtitle,.sidefoot{display:none}.nav button{white-space:nowrap;padding:9px}.main{padding:13px}.tiles{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:19px}.hero .bigicon{font-size:40px}.stats{grid-template-columns:repeat(2,1fr)}.cards4{grid-template-columns:repeat(2,1fr)}}@media(max-width:430px){.formrow{grid-template-columns:1fr}.top{align-items:flex-start}.hero{padding:16px}.hero p{line-height:1.7}}
+</style></head>
+<body><div class="app">
+<aside class="sidebar"><div class="brand"><div class="logo">▶</div><div><b>MBTV</b><small>IPTV Panel</small></div></div>
+<div class="navtitle">القائمة الرئيسية</div><nav class="nav">
+<button class="active" data-page="dashboard"><span>⌂</span>لوحة التحكم</button>
+<button data-page="live"><span>▣</span>القنوات المباشرة</button><button data-page="movies"><span>🎬</span>الأفلام (VOD)</button><button data-page="series"><span>▤</span>المسلسلات</button><button data-page="youtube"><span>▶</span>YouTube</button>
+</nav><div class="navtitle">الإدارة</div><nav class="nav">
+<button data-page="users"><span>♟</span>إدارة المستخدمين</button><button data-page="groups"><span>▱</span>المجموعات</button><button data-page="links"><span>🔗</span>روابط التشغيل</button><button data-page="export"><span>⇩</span>تصدير M3U</button><button data-page="settings"><span>⚙</span>الإعدادات</button><button data-page="logs"><span>▤</span>السجلات</button>
+</nav><div class="sidefoot">MBTV v2.0<br>واجهة إدارة المحتوى</div></aside>
+<main class="main"><header class="top"><div class="status">● الخادم: وضع المعاينة</div><div class="topright"><span>♧</span><div class="admin">المدير　♙</div></div></header>
+<section id="dashboard" class="section active">
+<div class="stats"><div class="stat"><span class="ico">♟</span><small>المستخدمون</small><strong id="userCount">0</strong></div><div class="stat"><span class="ico">◉</span><small>الاتصالات النشطة</small><strong>—</strong></div><div class="stat"><span class="ico">▤</span><small>إجمالي القنوات</small><strong id="liveCount">0</strong></div><div class="stat"><span class="ico">🎬</span><small>الأفلام</small><strong id="movieCount">0</strong></div><div class="stat"><span class="ico">▤</span><small>المسلسلات</small><strong id="seriesCount">0</strong></div><div class="stat"><span class="ico">▶</span><small>روابط YouTube</small><strong id="youtubeCount">0</strong></div></div>
+<div class="hero"><div><h1>مرحباً بك في لوحة MBTV</h1><p>إدارة القنوات والأفلام والمسلسلات والمستخدمين من مكان واحد</p></div><div class="bigicon">▣</div></div>
+<div class="tiles"><div class="tile live"><strong>📺 القنوات المباشرة</strong><small>Live TV</small><button onclick="go('live')">إدارة القنوات</button></div><div class="tile movies"><strong>🎬 الأفلام</strong><small>VOD Movies</small><button onclick="go('movies')">إضافة فيلم</button></div><div class="tile series"><strong>▤ المسلسلات</strong><small>Series</small><button onclick="go('series')">إدارة المسلسلات</button></div><div class="tile youtube"><strong>▶ روابط YouTube</strong><small>YouTube</small><button onclick="go('youtube')">إضافة رابط</button></div></div>
+<div class="columns"><div class="panel"><div class="panelhead"><h2>＋ إضافة محتوى جديد</h2><span class="pill">إضافة سريعة</span></div><div class="tabs"><button class="active" onclick="setType('live',this)">📺 قناة مباشرة</button><button onclick="setType('movies',this)">🎬 فيلم</button><button onclick="setType('series',this)">▤ مسلسل</button><button onclick="setType('youtube',this)">▶ YouTube</button></div><form class="formgrid" id="quickForm"><input type="hidden" id="quickType" value="live"><label>اسم المحتوى<input class="field" id="quickName" required placeholder="اكتب اسم القناة أو المحتوى"></label><label>رابط التشغيل<input class="field" id="quickUrl" required type="url" dir="ltr" placeholder="https://..."></label><div class="formrow"><label>المجموعة<select class="field" id="quickGroup"><option>عام</option><option>رياضة</option><option>أخبار</option><option>ترفيه</option><option>أطفال</option><option>أفلام عربية</option><option>أفلام أجنبية</option></select></label><label>رابط صورة/ملصق (اختياري)<input class="field" id="quickPoster" type="url" dir="ltr" placeholder="https://..."></label></div><button class="btn primary">＋ حفظ المحتوى</button></form></div>
+<div class="panel"><div class="panelhead"><h2>🔗 رابط قائمة التشغيل</h2><span class="pill">M3U</span></div><p class="notice">يمكن إنشاء ملف M3U من المحتوى الذي أضفته. رابط M3U ثابت مع تسجيل دخول للمستخدمين يحتاج إلى خادم وقاعدة بيانات آمنين، وهو غير مفعّل في هذه النسخة.</p><button class="btn primary" onclick="downloadM3U()">⇩ تنزيل قائمة M3U</button><button class="btn" onclick="copyM3U()">نسخ نص القائمة</button><div class="notice">لا تضع روابط أو محتوى لا تملك حق توزيعه. روابط YouTube تظل روابط رسمية وقد لا تعمل مباشرة داخل كل مشغلات IPTV.</div></div></div></section>
+<section id="live" class="section"><div class="panel"><div class="panelhead"><h2>📺 القنوات المباشرة</h2><button class="btn primary" onclick="go('dashboard')">＋ إضافة محتوى</button></div><div id="liveList" class="list"></div></div></section>
+<section id="movies" class="section"><div class="panel"><div class="panelhead"><h2>🎬 مكتبة الأفلام</h2><button class="btn primary" onclick="go('dashboard');setType('movies')">＋ إضافة فيلم</button></div><div id="moviesList" class="list"></div></div></section>
+<section id="series" class="section"><div class="panel"><div class="panelhead"><h2>▤ مكتبة المسلسلات</h2><button class="btn primary" onclick="go('dashboard');setType('series')">＋ إضافة مسلسل</button></div><div id="seriesList" class="list"></div><div class="notice">هذه النسخة تحفظ رابط المسلسل كعنصر واحد. إدارة المواسم والحلقات وربطها بواجهات Xtream تحتاج إلى خادم خلفي.</div></div></section>
+<section id="youtube" class="section"><div class="panel"><div class="panelhead"><h2>▶ روابط YouTube</h2><button class="btn primary" onclick="go('dashboard');setType('youtube')">＋ إضافة رابط</button></div><div id="youtubeList" class="list"></div></div></section>
+<section id="users" class="section"><div class="panel"><h2>♟ إدارة المستخدمين</h2><p class="notice">إدارة الحسابات وكلمات المرور والصلاحيات غير مفعّلة في الواجهة المحلية. لا يتم تخزين كلمات مرور هنا؛ يلزم إعداد مصادقة خلفية آمنة قبل إنشاء حسابات حقيقية.</p></div></section>
+<section id="groups" class="section"><div class="panel"><h2>▱ المجموعات</h2><div id="groupList" class="cards4"></div></div></section>
+<section id="links" class="section"><div class="panel"><h2>🔗 روابط التشغيل</h2><p class="notice">رابط موحّد على الإنترنت مع اسم مستخدم وكلمة مرور يتطلب خادماً عاماً وقاعدة بيانات. يمكنك حالياً تنزيل ملف M3U محلياً.</p><button class="btn primary" onclick="downloadM3U()">تنزيل M3U</button></div></section>
+<section id="export" class="section"><div class="panel"><h2>⇩ تصدير M3U</h2><p class="notice">يتم تصدير الروابط التي أضفتها فقط، مرتبة بحسب نوع المحتوى والمجموعة.</p><button class="btn primary" onclick="downloadM3U()">تنزيل الملف</button><button class="btn" onclick="copyM3U()">نسخ النص</button></div></section>
+<section id="settings" class="section"><div class="panel"><h2>⚙ الإعدادات</h2><p class="notice">هذه معاينة محلية؛ لا يوجد خادم متصل أو نطاق مخصص أو تحكم بالاتصالات المتزامنة. لا يمكن زيادة حد مزود البث أو تجاوزه، ويجب الالتزام بترخيصه.</p><button class="btn" onclick="clearData()">مسح بيانات المعاينة من هذا الجهاز</button></div></section>
+<section id="logs" class="section"><div class="panel"><h2>▤ السجلات</h2><p class="notice">سجل العمليات المركزي يتطلب قاعدة بيانات وخادماً. لا توجد سجلات خادم في وضع المعاينة.</p></div></section>
+</main></div><div id="toast" class="toast"></div>
+<script>
+const KEY='mbtv_v2_content';let items=[];try{items=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){items=[]}
+const names={live:'قناة مباشرة',movies:'فيلم',series:'مسلسل',youtube:'رابط YouTube'},icons={live:'📺',movies:'🎬',series:'▤',youtube:'▶'};
+function save(){localStorage.setItem(KEY,JSON.stringify(items));render()}
+function go(id){document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===id));document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));window.scrollTo({top:0,behavior:'smooth'})}
+document.querySelectorAll('.nav button[data-page]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
+function setType(t,btn){document.getElementById('quickType').value=t;document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));if(btn)btn.classList.add('active');else{const ix={live:0,movies:1,series:2,youtube:3}[t];document.querySelectorAll('.tabs button')[ix].classList.add('active')}}
+document.getElementById('quickForm').addEventListener('submit',e=>{e.preventDefault();const name=document.getElementById('quickName').value.trim(),url=document.getElementById('quickUrl').value.trim();if(!/^https?:\/\//i.test(url)){toast('أدخل رابطاً صحيحاً يبدأ بـ http أو https');return}items.push({id:Date.now(),type:document.getElementById('quickType').value,name,url,group:document.getElementById('quickGroup').value,poster:document.getElementById('quickPoster').value.trim()});save();e.target.reset();toast('تم حفظ المحتوى على هذا الجهاز')});
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function removeItem(id){items=items.filter(x=>x.id!==id);save();toast('تم حذف العنصر')}
+function list(type){const arr=items.filter(x=>x.type===type);return arr.length?arr.map(x=>'<div class="item"><div class="symbol">'+icons[type]+'</div><div class="iteminfo"><b>'+esc(x.name)+'</b><small>'+esc(x.group||'عام')+' · '+esc(x.url)+'</small></div><button class="mini" onclick="copyText('+JSON.stringify(x.url)+')">نسخ</button><button class="mini" onclick="removeItem('+x.id+')">حذف</button></div>').join(''):'<div class="empty">لا يوجد محتوى في هذا القسم بعد.</div>'}
+function render(){for(const t of ['live','movies','series','youtube']){const el=document.getElementById(t+'List');if(el)el.innerHTML=list(t)}document.getElementById('liveCount').textContent=items.filter(x=>x.type==='live').length;document.getElementById('movieCount').textContent=items.filter(x=>x.type==='movies').length;document.getElementById('seriesCount').textContent=items.filter(x=>x.type==='series').length;document.getElementById('youtubeCount').textContent=items.filter(x=>x.type==='youtube').length;const groups=[...new Set(items.map(x=>x.group||'عام'))];document.getElementById('groupList').innerHTML=groups.length?groups.map(g=>'<div class="contentcard"><div class="symbol">▱</div><b>'+esc(g)+'</b><small>'+items.filter(x=>(x.group||'عام')===g).length+' عناصر</small></div>').join(''):'<div class="empty">ستظهر المجموعات هنا بعد إضافة المحتوى.</div>'}
+function m3u(){let s='#EXTM3U\n';items.forEach(x=>{s+='#EXTINF:-1 group-title="'+(x.type.toUpperCase()+' - '+(x.group||'عام'))+'" tvg-name="'+x.name.replace(/"/g,'')+'",'+x.name+'\n'+x.url+'\n'});return s}
+function downloadM3U(){if(!items.length){toast('أضف محتوى أولاً');return}const a=document.createElement('a'),u=URL.createObjectURL(new Blob([m3u()],{type:'audio/x-mpegurl;charset=utf-8'}));a.href=u;a.download='MBTV-Playlist.m3u';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);toast('تم تنزيل ملف M3U')}
+function copyM3U(){if(!items.length){toast('أضف محتوى أولاً');return}copyText(m3u())}
+function copyText(s){if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(s).then(()=>toast('تم النسخ')).catch(()=>toast('تعذر النسخ في هذا المتصفح'));else toast('النسخ غير مدعوم في هذا المتصفح')}
+function clearData(){if(confirm('هل تريد مسح جميع بيانات المعاينة المحفوظة على هذا الجهاز؟')){items=[];save();toast('تم مسح بيانات المعاينة')}}
+let tt;function toast(s){const e=document.getElementById('toast');e.textContent=s;e.style.display='block';clearTimeout(tt);tt=setTimeout(()=>e.style.display='none',2600)}
+render();
+</script></body></html>

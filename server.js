@@ -45,7 +45,7 @@ function playlist(req,res){const key=String(req.query.key||"");const expected=pr
 app.get("/api/playlist-info",auth,(req,res)=>{const key=process.env.PLAYLIST_KEY||"";if(!key)return res.status(503).json({error:"لم يتم إعداد مفتاح قائمة التشغيل"});const base=req.headers["x-forwarded-proto"]==="https"?"https":"http";res.json({url:base+"://"+req.get("host")+"/playlist.m3u?key="+encodeURIComponent(key)})});
 app.get("/playlist.m3u",playlist);app.get("/api/export.m3u",auth,(req,res)=>res.type("application/x-mpegURL").attachment("MBTV.m3u").send(buildPlaylist()));
 app.use(express.static(path.join(__dirname,"public"),{extensions:["html"]}));app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
-async function start(){if(pool){await pool.query("CREATE TABLE IF NOT EXISTS mbtv_state(id INTEGER PRIMARY KEY CHECK(id=1),payload JSONB NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");const r=await pool.query("SELECT payload FROM mbtv_state WHERE id=1");if(r.rows[0])db=r.rows[0].payload;else await persist()}
+async function start(){if(pool){await pool.query("CREATE TABLE IF NOT EXISTS mbtv_state(id INTEGER PRIMARY KEY CHECK(id=1),payload JSONB NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");const r=await pool.query("SELECT payload FROM mbtv_state WHERE id=1");if(r.rows[0])db=r.rows[0].payload;else await persist();if(!Array.isArray(db.members))db.members=[]}
 // Safe, clearly labelled playback-test samples. These are not live TV channels.
 const demoSamples=[
   {id:"demo-hls-test",name:"اختبار بث HLS - Mux (تجريبي)",url:"https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",type:"live",group:"اختبارات تقنية",poster:"",demo:true},

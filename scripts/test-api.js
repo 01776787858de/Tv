@@ -41,7 +41,7 @@ test("MBTV API login, content CRUD and M3U import/export",async t=>{
   const secondCreated=await fetch(base+"/api/admin/members",{method:"POST",headers:{"content-type":"application/json",cookie},body:JSON.stringify({days:30})});assert.equal(secondCreated.status,201);const secondData=await secondCreated.json();
   const secondLogin=await fetch(base+"/api/member/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(secondData.credentials)});assert.equal(secondLogin.status,200);const secondCookie=secondLogin.headers.get("set-cookie").split(";")[0];
   const secondFav=await fetch(base+"/api/member/favorites",{headers:{cookie:secondCookie}});assert.equal(secondFav.status,200);assert.deepEqual((await secondFav.json()).favorites,[]);
-  const memberList=await fetch(base+"/api/admin/members",{headers:{cookie}});assert.equal(memberList.status,200);const members=(await memberList.json()).members;assert.equal(members.length,1);assert.equal(Object.hasOwn(members[0],"passwordHash"),false);
+  const memberList=await fetch(base+"/api/admin/members",{headers:{cookie}});assert.equal(memberList.status,200);const members=(await memberList.json()).members;assert.equal(members.length,2);assert.equal(Object.hasOwn(members[0],"passwordHash"),false);
   const disabled=await fetch(base+"/api/admin/members/"+memberData.member.id,{method:"PATCH",headers:{"content-type":"application/json",cookie},body:JSON.stringify({active:false})});assert.equal(disabled.status,200);
   const blockedCatalog=await fetch(base+"/api/catalog",{headers:{cookie:memberCookie}});assert.equal(blockedCatalog.status,401);
   const del=await fetch(base+"/api/items/"+item.id,{method:"DELETE",headers:{cookie}});assert.equal(del.status,200);

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MBTV — معاينة التصميم الجديد</title>
+<style>
+:root{--bg:#080d18;--panel:#101a2b;--panel2:#162238;--line:#25344c;--text:#f4f7fb;--muted:#91a0b7;--accent:#31c5a4;--blue:#4d8dff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% -20%,#17385a 0,transparent 38%),var(--bg);color:var(--text);font-family:Tahoma,Arial,sans-serif;min-height:100vh}
+button,input{font:inherit}.app{display:grid;grid-template-columns:245px 1fr;min-height:100vh}
+.sidebar{background:rgba(12,20,34,.94);border-left:1px solid var(--line);padding:26px 16px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:12px;padding:0 8px 28px}.brand-mark{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--accent),#2389d7);display:grid;place-items:center;font-size:24px;box-shadow:0 8px 28px #21bda344}.brand strong{font-size:22px;letter-spacing:1px}.brand small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.nav-label{color:#71829c;font-size:11px;padding:12px 10px 8px}.nav button{width:100%;display:flex;align-items:center;gap:12px;background:none;border:0;color:#aab7ca;text-align:right;padding:12px;border-radius:12px;cursor:pointer;margin:3px 0}.nav button.active,.nav button:hover{background:#1a2a41;color:#fff}.nav button.active{box-shadow:inset -3px 0 var(--accent)}.nav .flag{font-size:19px;width:25px;text-align:center}
+.sidebar-foot{position:absolute;bottom:22px;right:16px;left:16px;color:#687993;font-size:11px;border-top:1px solid var(--line);padding:16px 8px}
+main{padding:26px 34px 60px;max-width:1600px;width:100%;margin:auto}.topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}.welcome h1{font-size:25px;margin:0 0 7px}.welcome p{margin:0;color:var(--muted);font-size:13px}.actions{display:flex;align-items:center;gap:10px}.search{width:min(310px,35vw);background:#111d30;border:1px solid var(--line);border-radius:12px;padding:12px 15px;color:white;outline:none}.search:focus{border-color:var(--accent)}.profile{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#233a55;font-size:20px}
+.hero{display:grid;grid-template-columns:1.25fr .75fr;gap:18px;margin-bottom:28px}.featured{min-height:235px;border:1px solid #31516b;border-radius:22px;padding:26px;background:linear-gradient(115deg,#143a51,#13243c 60%,#19233b);position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between}.featured:after{content:"📡";position:absolute;font-size:145px;opacity:.09;left:26px;bottom:2px}.eyebrow{color:var(--accent);font-size:12px;font-weight:bold}.featured h2{font-size:28px;margin:14px 0 8px}.featured p{color:#c1cfdf;margin:0;font-size:13px}.play-btn{align-self:flex-start;margin-top:20px;background:var(--accent);border:0;border-radius:10px;padding:11px 20px;color:#06241e;font-weight:bold;cursor:pointer;z-index:1}.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}.stat{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;display:flex;flex-direction:column;justify-content:center}.stat b{font-size:26px}.stat span{color:var(--muted);font-size:12px;margin-top:5px}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin:26px 0 14px}.section-head h2{font-size:18px;margin:0}.section-head span{font-size:12px;color:var(--muted)}
+.country-strip{display:flex;gap:10px;overflow:auto;padding:2px 2px 10px}.country-chip{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:#c3cede;padding:10px 15px;border-radius:12px;cursor:pointer}.country-chip.active,.country-chip:hover{background:#173d43;border-color:#2b9e8d;color:white}
+.country-section{margin-top:22px}.country-title{display:flex;align-items:center;gap:10px;margin-bottom:12px}.country-title .flag{font-size:25px}.country-title h3{margin:0;font-size:17px}.country-title small{color:var(--muted);font-size:11px}
+.channels{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px}.channel{background:linear-gradient(145deg,#142239,#101a2a);border:1px solid var(--line);border-radius:15px;padding:15px;min-height:112px;text-align:center;cursor:pointer;transition:.18s;outline:none}.channel:hover,.channel:focus{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 8px 25px #0005}.logo{width:49px;height:49px;border-radius:14px;margin:0 auto 10px;background:#20334d;display:grid;place-items:center;font-size:25px;overflow:hidden}.logo img{width:100%;height:100%;object-fit:contain;background:white}.channel strong{display:block;font-size:13px}.channel small{display:block;color:var(--muted);font-size:10px;margin-top:5px}
+.empty{padding:30px;text-align:center;color:var(--muted);display:none}
+.notice{margin-top:30px;padding:14px 16px;border:1px dashed #39516c;border-radius:13px;color:#9aabc2;font-size:12px;line-height:1.8}
+@media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto;padding:14px 16px;border-left:0;border-bottom:1px solid var(--line)}.brand{padding:0 4px 12px}.nav{display:flex;overflow:auto}.nav-label,.sidebar-foot{display:none}.nav button{white-space:nowrap;width:auto;padding:9px 12px}.nav button.active{box-shadow:inset 0 -3px var(--accent)}main{padding:20px 16px 45px}.hero{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.topbar{align-items:flex-start;flex-direction:column}.actions{width:100%}.search{width:100%;flex:1}.welcome h1{font-size:21px}.featured{min-height:205px;padding:20px}.featured h2{font-size:23px}.channels{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+ <div class="brand"><div class="brand-mark">▶</div><div><strong>MBTV</strong><small>LIVE TELEVISION</small></div></div>
+ <div class="nav-label">القائمة الرئيسية</div>
+ <nav class="nav">
+  <button class="active" data-country="all"><span class="flag">⌂</span> الرئيسية</button>
+  <button data-country="Syria"><span class="flag">🇸🇾</span> سوريا</button>
+  <button data-country="Saudi Arabia"><span class="flag">🇸🇦</span> السعودية</button>
+  <button data-country="UAE"><span class="flag">🇦🇪</span> الإمارات</button>
+  <button data-country="Qatar"><span class="flag">🇶🇦</span> قطر</button>
+  <button data-country="all"><span class="flag">★</span> المفضلة</button>
+ </nav>
+ <div class="sidebar-foot">MBTV Redesign Preview · واجهة تجريبية</div>
+</aside>
+<main>
+ <div class="topbar">
+  <div class="welcome"><h1>أهلاً بك في MBTV 📺</h1><p>قنواتك المفضلة مرتبة حسب الدولة — اختر الدولة وابدأ المشاهدة</p></div>
+  <div class="actions"><input id="search" class="search" placeholder="⌕  ابحث عن قناة أو دولة..."><div class="profile">👤</div></div>
+ </div>
+ <section class="hero">
+  <div class="featured"><div><div class="eyebrow">● بث مباشر · LIVE</div><h2>كل القنوات في مكان واحد</h2><p>تنقّل بسهولة بين قنوات الدول، الأخبار والرياضة والترفيه.</p></div><button class="play-btn" onclick="document.querySelector('#countries').scrollIntoView({behavior:'smooth'})">استكشف القنوات　←</button></div>
+  <div class="stats"><div class="stat"><b id="count">6</b><span>قنوات في المعاينة</span></div><div class="stat"><b>4</b><span>مجموعات دول</span></div><div class="stat"><b>⌕</b><span>بحث سريع</span></div><div class="stat"><b>◉</b><span>جاهز للتحكم بالريموت</span></div></div>
+ </section>
+ <div class="section-head"><h2>اختر الدولة</h2><span>تصفية حسب البلد</span></div>
+ <div class="country-strip" id="countryStrip">
+  <button class="country-chip active" data-country="all">🌍 الكل</button>
+  <button class="country-chip" data-country="Syria">🇸🇾 سوريا</button>
+  <button class="country-chip" data-country="Saudi Arabia">🇸🇦 السعودية</button>
+  <button class="country-chip" data-country="UAE">🇦🇪 الإمارات</button>
+  <button class="country-chip" data-country="Qatar">🇶🇦 قطر</button>
+ </div>
+ <div id="countries">
+  <section class="country-section" data-group="Qatar"><div class="country-title"><span class="flag">🇶🇦</span><div><h3>قطر</h3><small>Qatar · القنوات الرياضية والإخبارية</small></div></div><div class="channels">
+   <div class="channel" tabindex="0" data-name="beIN Sports News HD" data-country="Qatar"><div class="logo"><img src="https://upload.wikimedia.org/wikipedia/commons/e/e5/BeIN_Sports_News_logo.png" alt="" onerror="this.parentElement.textContent='📺'"></div><strong>beIN Sports News</strong><small>أخبار رياضية · HD</small></div>
+   <div class="channel" tabindex="0" data-name="Al Jazeera الجزيرة الإخبارية" data-country="Qatar"><div class="logo"><img src="https://upload.wikimedia.org/wikipedia/commons/f/f2/Al_Jazeera_Channels_Logo.png" alt="" onerror="this.parentElement.textContent='📺'"></div><strong>الجزيرة الإخبارية</strong><small>أخبار · مباشر</small></div>
+  </div></section>
+  <section class="country-section" data-group="Saudi Arabia"><div class="country-title"><span class="flag">🇸🇦</span><div><h3>السعودية</h3><small>Saudi Arabia · قنوات متنوعة</small></div></div><div class="channels">
+   <div class="channel" tabindex="0" data-name="MBC 1" data-country="Saudi Arabia"><div class="logo">📺</div><strong>MBC 1</strong><small>ترفيه · عربي</small></div>
+  </div></section>
+  <section class="country-section" data-group="UAE"><div class="country-title"><span class="flag">🇦🇪</span><div><h3>الإمارات</h3><small>United Arab Emirates · رياضة</small></div></div><div class="channels">
+   <div class="channel" tabindex="0" data-name="أبوظبي الرياضية 1" data-country="UAE"><div class="logo">🏆</div><strong>أبوظبي الرياضية 1</strong><small>رياضة · مباشر</small></div>
+  </div></section>
+  <section class="country-section" data-group="Syria"><div class="country-title"><span class="flag">🇸🇾</span><div><h3>سوريا</h3><small>Syria · مجموعة قنوات الدولة</small></div></div><div class="channels">
+   <div class="channel" tabindex="0" data-name="قنوات سوريا قريباً" data-country="Syria"><div class="logo">🇸🇾</div><strong>قنوات سوريا</strong><small>تُضاف عند ربط القائمة</small></div>
+  </div></section>
+ </div>
+ <div id="empty" class="empty">لا توجد نتائج مطابقة لبحثك.</div>
+ <div class="notice">هذه صفحة معاينة للتصميم فقط. أسماء القنوات المعروضة مبنية على عناصر قائمة live.m3u الحالية، وتصنيف الدولة تجريبي؛ يلزم إضافة country metadata إلى ملف القنوات لاعتماد التصنيف تلقائياً في النسخة النهائية.</div>
+</main>
+</div>
+<script>
+const search=document.getElementById('search');let selected='all';
+function apply(){const q=search.value.trim().toLowerCase();let visible=0;
+ document.querySelectorAll('.country-section').forEach(section=>{const country=section.dataset.group;let cards=0;section.querySelectorAll('.channel').forEach(card=>{const okCountry=selected==='all'||selected===country;const okText=(card.dataset.name+' '+country).toLowerCase().includes(q);card.style.display=okCountry&&okText?'':'none';if(okCountry&&okText)cards++;});section.style.display=cards?'':'none';visible+=cards;});
+ document.getElementById('empty').style.display=visible?'none':'block';
+ document.querySelectorAll('[data-country]').forEach(b=>b.classList.toggle('active',b.dataset.country===selected));
+}
+document.querySelectorAll('[data-country]').forEach(b=>b.addEventListener('click',()=>{selected=b.dataset.country;apply();}));
+search.addEventListener('input',apply);
+document.querySelectorAll('.channel').forEach(c=>{c.addEventListener('click',()=>alert('معاينة القناة: '+c.dataset.name+'\nسيتم ربط المشغّل عند اعتماد التصميم.'));c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();c.click();}});});
+</script>
+</body></html>

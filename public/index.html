@@ -67,7 +67,7 @@ $("#refreshMembers").onclick=loadMembers;
 async function loadStats(){try{const d=await api("/api/admin/stats");$("#stat-plays").textContent=d.plays;$("#stat-channels").textContent=d.channels;$("#stat-soon").textContent=d.soon;$("#stat-expired").textContent=d.expired;$("#topChannels").innerHTML=d.top.map(x=>'<div class="item"><b>'+esc(x.name)+'</b><span class="muted">'+x.plays+' تشغيل</span></div>').join("")||'<p class="muted">لا توجد مشاهدات مسجلة بعد.</p>'}catch(e){}}
 $("#refreshStats").onclick=loadStats;
 $("#checkChannels").onclick=async()=>{const b=$("#checkChannels");b.disabled=true;b.textContent="جارٍ الفحص...";try{const d=await api("/api/admin/check-channels",{method:"POST",body:JSON.stringify({})});$("#checkSummary").textContent="تم فحص "+d.checked+" قناة: "+d.online+" تعمل، "+d.offline+" متوقفة.";await load()}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent="فحص القنوات الآن"}};
-$("#channelSearch").oninput=()=>{const q=$("#channelSearch").value.toLowerCase();$('#list-live .item').forEach(x=>x.style.display=x.textContent.toLowerCase().includes(q)?"":"none")};
+$("#channelSearch").oninput=()=>{const q=$("#channelSearch").value.toLowerCase();$("#list-live .item").forEach(x=>x.style.display=x.textContent.toLowerCase().includes(q)?"":"none")};
 $("#suggestLogo").onclick=async()=>{try{const d=await api("/api/admin/logo-suggest?q="+encodeURIComponent($("#name").value));if(!d.suggestions.length)return toast("لم نعثر على شعار");const choice=prompt("اختر رقم الشعار:\n"+d.suggestions.map((x,i)=>(i+1)+". "+x.title).join("\n"));const item=d.suggestions[Number(choice)-1];if(item){$("#poster").value=item.url;toast("تم اختيار الشعار")}}catch(e){toast(e.message)}};
 
 function wireLiveRows(){

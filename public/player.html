@@ -43,7 +43,7 @@ function destroy(){if(hls){hls.destroy();hls=null}video.pause();video.removeAttr
 function start(){
  destroy();
  if(!validSource(source)){status("رابط التشغيل غير صالح. افتح القناة من لوحة MBTV أو استخدم رابط HTTP/HTTPS صحيحاً.");return}
- const isHls=/\.m3u8?(?:$|[?#])/i.test(source);
+ const isHls=/\.(?:m3u8?|pdf)(?:$|[?#])/i.test(source);
  if(isHls&&window.Hls&&Hls.isSupported()){
    hls=new Hls({enableWorker:true,lowLatencyMode:false,backBufferLength:30});
    hls.on(Hls.Events.MEDIA_ATTACHED,()=>{hls.loadSource(source);status("تم ربط المشغّل. جارٍ تحميل قائمة HLS…")});

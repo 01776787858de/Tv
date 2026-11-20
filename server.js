@@ -63,11 +63,11 @@ function inferChannelGroup(name,group){
  return "عربي - عام";
 }
 function parseM3U(raw){
- const text=String(raw||"").replace(/^\\uFEFF/,"").trim();
+ const text=String(raw||"").replace(/^\uFEFF/,"").trim();
  if(!text||!text.split(/\\r?\\n/).some(x=>x.trim()==="#EXTM3U"||x.trim().startsWith("#EXTM3U")))throw Error("القائمة لا تحتوي على ترويسة #EXTM3U");
- const lines=text.split(/\\r?\\n/);let meta=null;const entries=[],issues=[];
+ const lines=text.split(/\r?\n/);let meta=null;const entries=[],issues=[];
  for(let i=0;i<lines.length;i++){const line=lines[i].trim();if(!line)continue;
-  if(line.startsWith("#EXTINF:")){const comma=line.indexOf(",");const attrs=line.slice(0,comma<0?undefined:comma);const name=(comma>=0?line.slice(comma+1):"").trim();const attr=k=>{const m=attrs.match(new RegExp("(?:^|\\\\s)"+k+"=[\\\\"']([^\\\\"']*)[\\\\"']","i"));return m?m[1]:""};meta={name:(name||attr("tvg-name")||"بدون اسم").slice(0,160),group:attr("group-title"),poster:attr("tvg-logo"),epgId:attr("tvg-id")};continue}
+  if(line.startsWith("#EXTINF:")){const comma=line.indexOf(",");const attrs=Object.fromEntries([...line.slice(0,comma<0?undefined:comma).matchAll(/([\w-]+)="([^"]*)"/g)].map(m=>[m[1].toLowerCase(),m[2]]));const name=(comma>=0?line.slice(comma+1):"").trim();const attr=k=>attrs[k]||"";meta={name:(name||attr("tvg-name")||"بدون اسم").slice(0,160),group:attr("group-title"),poster:attr("tvg-logo"),epgId:attr("tvg-id")};continue}
   if(line.startsWith("#")||!meta)continue;
   const url=line.split("|")[0].trim();
   if(!validUrl(url)){issues.push({line:i+1,reason:"رابط غير صالح",name:meta.name});meta=null;continue}

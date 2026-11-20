@@ -89,7 +89,7 @@ function addM3UEntries(parsed){
 }
 app.post("/api/import-m3u-preview",auth,async(req,res)=>{try{
  let raw=String(req.body.content||"");
- if(req.body.url){const rawUrl=String(req.body.url).trim();if(!validUrl(rawUrl))return res.status(400).json({error:"أدخل رابط M3U صحيحاً"});const u=new URL(rawUrl);if(u.username||u.password)return res.status(400).json({error:"روابط الدخول المضمّنة غير مدعومة"});const addresses=await dns.lookup(u.hostname,{all:true});if(!addresses.length||addresses.some(x=>isPrivateAddress(x.address)))return res.status(400).json({error:"هذا العنوان غير مسموح لأسباب أمنية"});const response=await fetch(u,{redirect:"error",signal:AbortSignal.timeout(15000),headers:{Accept:"application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*"}});if(!response.ok)return res.status(502).json({error:"تعذر جلب القائمة: HTTP "+response.status});raw=await response.text()}
+ if(req.body.url){const rawUrl=String(req.body.url).trim();if(!validUrl(rawUrl))return res.status(400).json({error:"أدخل رابط M3U صحيحاً"});const u=new URL(rawUrl);if(u.username||u.password)return res.status(400).json({error:"روابط الدخول المضمّنة غير مدعومة"});const addresses=await dns.lookup(u.hostname,{all:true});if(!addresses.length||addresses.some(x=>isPrivateAddress(x.address)))return res.status(400).json({error:"هذا العنوان غير مسموح لأسباب أمنية"});const response=await fetch(u,{redirect:"error",signal:AbortSignal.timeout(15000),headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",Accept:"application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*"}});if(!response.ok)return res.status(502).json({error:"تعذر جلب القائمة: HTTP "+response.status});raw=await response.text()}
  if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});
  const parsed=parseM3U(raw,req.body.url||""),known=new Set(db.items.map(x=>String(x.url||"").trim()));let duplicates=0;for(const row of parsed.entries){if(known.has(row.url))duplicates++;else known.add(row.url)}
  const token=crypto.randomBytes(24).toString("hex");pendingM3U.set(token,{parsed,expiresAt:Date.now()+15*60*1000});
@@ -102,7 +102,7 @@ app.post("/api/import-m3u-url",auth,async(req,res)=>{try{
  const rawUrl=String(req.body.url||"").trim();if(!validUrl(rawUrl))return res.status(400).json({error:"أدخل رابط M3U صحيحاً"});
  const u=new URL(rawUrl);if(u.username||u.password)return res.status(400).json({error:"روابط الدخول المضمّنة غير مدعومة"});
  const addresses=await dns.lookup(u.hostname,{all:true});if(!addresses.length||addresses.some(x=>isPrivateAddress(x.address)))return res.status(400).json({error:"هذا العنوان غير مسموح لأسباب أمنية"});
- const r=await fetch(u,{redirect:"error",signal:AbortSignal.timeout(15000),headers:{Accept:"application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*"}});
+ const r=await fetch(u,{redirect:"error",signal:AbortSignal.timeout(15000),headers:{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",Accept:"application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*"}});
  if(!r.ok)return res.status(502).json({error:"تعذر جلب القائمة: HTTP "+r.status});
  const raw=await r.text();if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});
  const parsed=parseM3U(raw,rawUrl);const result=addM3UEntries(parsed);await persist();res.json(result);

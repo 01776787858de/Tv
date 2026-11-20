@@ -97,7 +97,7 @@ app.post("/api/import-m3u-preview",auth,async(req,res)=>{try{
  res.json({token,total:parsed.entries.length,duplicates,added:parsed.entries.length-duplicates,invalid:parsed.issues.length,issues:parsed.issues.slice(0,20),sample:parsed.entries.slice(0,20).map(x=>({name:x.name,group:x.group||"",url:x.url}))});
  }catch(e){res.status(400).json({error:e.name==="TimeoutError"?"انتهت مهلة جلب القائمة":e.message})}});
 app.post("/api/import-m3u-commit",auth,async(req,res)=>{try{const token=String(req.body.token||""),pending=pendingM3U.get(token);if(!pending||pending.expiresAt<=Date.now()){pendingM3U.delete(token);return res.status(410).json({error:"انتهت صلاحية المعاينة، أعد المعاينة من جديد"})}pendingM3U.delete(token);const result=addM3UEntries(pending.parsed);await persist();res.json(result)}catch(e){res.status(400).json({error:e.message})}});
-app.post("/api/import-m3u",auth,async(req,res)=>{try{const raw=String(req.body.content||"");if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});const parsed=parseM3U(raw,rawUrl);const result=addM3UEntries(parsed);await persist();res.json(result)}catch(e){res.status(400).json({error:e.message})}});
+app.post("/api/import-m3u",auth,async(req,res)=>{try{const raw=String(req.body.content||"");if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});const parsed=parseM3U(raw);const result=addM3UEntries(parsed);await persist();res.json(result)}catch(e){res.status(400).json({error:e.message})}});
 app.post("/api/import-m3u-url",auth,async(req,res)=>{try{
  const rawUrl=String(req.body.url||"").trim();if(!validUrl(rawUrl))return res.status(400).json({error:"أدخل رابط M3U صحيحاً"});
  const u=new URL(rawUrl);if(u.username||u.password)return res.status(400).json({error:"روابط الدخول المضمّنة غير مدعومة"});
@@ -105,7 +105,7 @@ app.post("/api/import-m3u-url",auth,async(req,res)=>{try{
  const r=await fetch(u,{redirect:"error",signal:AbortSignal.timeout(15000),headers:{Accept:"application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*"}});
  if(!r.ok)return res.status(502).json({error:"تعذر جلب القائمة: HTTP "+r.status});
  const raw=await r.text();if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});
- const parsed=parseM3U(raw);const result=addM3UEntries(parsed);await persist();res.json(result);
+ const parsed=parseM3U(raw,rawUrl);const result=addM3UEntries(parsed);await persist();res.json(result);
  }catch(e){res.status(400).json({error:e.name==="TimeoutError"?"انتهت مهلة جلب القائمة":e.message})}});
 
 function isPrivateAddress(ip){if(net.isIP(ip)===4){const p=ip.split(".").map(Number);return p[0]===10||p[0]===127||p[0]===0||p[0]===169&&p[1]===254||p[0]===172&&p[1]>=16&&p[1]<=31||p[0]===192&&p[1]===168||p[0]>=224}if(net.isIP(ip)===6){const x=ip.toLowerCase();return x==="::1"||x==="::"||x.startsWith("fc")||x.startsWith("fd")||x.startsWith("fe80:")}return true}

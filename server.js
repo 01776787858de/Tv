@@ -63,9 +63,13 @@ function inferChannelGroup(name,group){
  if(/أخبار|news|الحدث|الجزيرة|العربية|سكاي|فرانس 24|bbc|dw/.test(n))return "أخبار";
  return "عربي - عام";
 }
-function parseM3U(raw){
+function parseM3U(raw,sourceUrl=""){
  const text=String(raw||"").replace(/^\uFEFF/,"").trim();
  if(!text||!text.split(/\\r?\\n/).some(x=>x.trim()==="#EXTM3U"||x.trim().startsWith("#EXTM3U")))throw Error("القائمة لا تحتوي على ترويسة #EXTM3U");
+ if(/#EXT-X-TARGETDURATION:|#EXT-X-MEDIA-SEQUENCE:/.test(text)){
+  if(!sourceUrl||!validUrl(sourceUrl))throw Error("هذه قائمة HLS داخلية؛ ضع رابط القائمة الكامل في خانة رابط M3U، وليس المقاطع المنفردة في مربع المحتوى");
+  return {entries:[{name:"بث HLS",group:"HLS",poster:"",epgId:"",url:sourceUrl}],issues:[]};
+ }
  const lines=text.split(/\r?\n/);let meta=null;const entries=[],issues=[];
  for(let i=0;i<lines.length;i++){const line=lines[i].trim();if(!line)continue;
   if(line.startsWith("#EXTINF:")){const comma=line.indexOf(",");const attrs=Object.fromEntries([...line.slice(0,comma<0?undefined:comma).matchAll(/([\w-]+)="([^"]*)"/g)].map(m=>[m[1].toLowerCase(),m[2]]));const name=(comma>=0?line.slice(comma+1):"").trim();const attr=k=>attrs[k]||"";meta={name:(name||attr("tvg-name")||"بدون اسم").slice(0,160),group:attr("group-title"),poster:attr("tvg-logo"),epgId:attr("tvg-id")};continue}
@@ -87,13 +91,13 @@ app.post("/api/import-m3u-preview",auth,async(req,res)=>{try{
  let raw=String(req.body.content||"");
  if(req.body.url){const rawUrl=String(req.body.url).trim();if(!validUrl(rawUrl))return res.status(400).json({error:"أدخل رابط M3U صحيحاً"});const u=new URL(rawUrl);if(u.username||u.password)return res.status(400).json({error:"روابط الدخول المضمّنة غير مدعومة"});const addresses=await dns.lookup(u.hostname,{all:true});if(!addresses.length||addresses.some(x=>isPrivateAddress(x.address)))return res.status(400).json({error:"هذا العنوان غير مسموح لأسباب أمنية"});const response=await fetch(u,{redirect:"error",signal:AbortSignal.timeout(15000),headers:{Accept:"application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*"}});if(!response.ok)return res.status(502).json({error:"تعذر جلب القائمة: HTTP "+response.status});raw=await response.text()}
  if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});
- const parsed=parseM3U(raw),known=new Set(db.items.map(x=>String(x.url||"").trim()));let duplicates=0;for(const row of parsed.entries){if(known.has(row.url))duplicates++;else known.add(row.url)}
+ const parsed=parseM3U(raw,req.body.url||""),known=new Set(db.items.map(x=>String(x.url||"").trim()));let duplicates=0;for(const row of parsed.entries){if(known.has(row.url))duplicates++;else known.add(row.url)}
  const token=crypto.randomBytes(24).toString("hex");pendingM3U.set(token,{parsed,expiresAt:Date.now()+15*60*1000});
  for(const [key,value] of pendingM3U)if(value.expiresAt<=Date.now())pendingM3U.delete(key);
  res.json({token,total:parsed.entries.length,duplicates,added:parsed.entries.length-duplicates,invalid:parsed.issues.length,issues:parsed.issues.slice(0,20),sample:parsed.entries.slice(0,20).map(x=>({name:x.name,group:x.group||"",url:x.url}))});
  }catch(e){res.status(400).json({error:e.name==="TimeoutError"?"انتهت مهلة جلب القائمة":e.message})}});
 app.post("/api/import-m3u-commit",auth,async(req,res)=>{try{const token=String(req.body.token||""),pending=pendingM3U.get(token);if(!pending||pending.expiresAt<=Date.now()){pendingM3U.delete(token);return res.status(410).json({error:"انتهت صلاحية المعاينة، أعد المعاينة من جديد"})}pendingM3U.delete(token);const result=addM3UEntries(pending.parsed);await persist();res.json(result)}catch(e){res.status(400).json({error:e.message})}});
-app.post("/api/import-m3u",auth,async(req,res)=>{try{const raw=String(req.body.content||"");if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});const parsed=parseM3U(raw);const result=addM3UEntries(parsed);await persist();res.json(result)}catch(e){res.status(400).json({error:e.message})}});
+app.post("/api/import-m3u",auth,async(req,res)=>{try{const raw=String(req.body.content||"");if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});const parsed=parseM3U(raw,rawUrl);const result=addM3UEntries(parsed);await persist();res.json(result)}catch(e){res.status(400).json({error:e.message})}});
 app.post("/api/import-m3u-url",auth,async(req,res)=>{try{
  const rawUrl=String(req.body.url||"").trim();if(!validUrl(rawUrl))return res.status(400).json({error:"أدخل رابط M3U صحيحاً"});
  const u=new URL(rawUrl);if(u.username||u.password)return res.status(400).json({error:"روابط الدخول المضمّنة غير مدعومة"});

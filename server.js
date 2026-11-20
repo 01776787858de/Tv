@@ -3,7 +3,7 @@ const express=require("express"),helmet=require("helmet"),rateLimit=require("exp
 const app=express();app.set("trust proxy",1);const PORT=process.env.PORT||3000;const DATA=process.env.DATA_FILE||path.join(__dirname,"data.json");
 const ADMIN_PASSWORD=process.env.ADMIN_PASSWORD||"";const SESSION_SECRET=process.env.SESSION_SECRET||"";
 if(!ADMIN_PASSWORD||ADMIN_PASSWORD.length<14||!SESSION_SECRET||SESSION_SECRET.length<32){console.error("Set ADMIN_PASSWORD (14+ chars) and SESSION_SECRET (32+ chars) before starting.");process.exit(1)}
-app.disable("x-powered-by");app.use(helmet({contentSecurityPolicy:false}));app.use(express.json({limit:"1mb"}));app.use(express.urlencoded({extended:false,limit:"1mb"}));
+app.disable("x-powered-by");app.use(helmet({contentSecurityPolicy:false}));app.use(express.json({limit:"5mb"}));app.use(express.urlencoded({extended:false,limit:"1mb"}));
 const limiter=rateLimit({windowMs:15*60*1000,limit:120,standardHeaders:true,legacyHeaders:false});const loginLimiter=rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:true,legacyHeaders:false,message:{error:"محاولات تسجيل الدخول كثيرة، حاول لاحقاً"}});app.use("/api",limiter);
 const empty=()=>({items:[],members:[],groups:["عام","رياضة","أخبار","ترفيه","أطفال","أفلام عربية","أفلام أجنبية"],updatedAt:new Date().toISOString()});
 function read(){try{const d=JSON.parse(fs.readFileSync(DATA,"utf8"));if(!Array.isArray(d.items))throw Error();if(!Array.isArray(d.members))d.members=[];return d}catch{return empty()}}
@@ -26,7 +26,7 @@ function recordPlay(item,member){ensureStats();db.stats.plays++;db.stats.byItem[
 
 app.get("/api/health",(req,res)=>res.json({ok:true,service:"MBTV",time:new Date().toISOString()}));
 app.get("/api/admin/stats",auth,(req,res)=>{ensureStats();const soon=db.members.filter(m=>m.active&&new Date(m.expiresAt).getTime()>Date.now()&&new Date(m.expiresAt).getTime()<=Date.now()+7*86400000).length;const expired=db.members.filter(m=>new Date(m.expiresAt).getTime()<=Date.now()).length;res.json({plays:db.stats.plays||0,channels:db.items.filter(x=>x.type==="live").length,soon,expired,top:orderedItems().map(x=>({name:x.name,plays:x.plays||0})).sort((a,b)=>b.plays-a.plays).slice(0,8)})});
-app.get("/api/admin/members",auth,(req,res)=>res.json({members:db.members.map(({id,username,active,createdAt,expiresAt})=>({id,username,active,createdAt,expiresAt,status:active&&new Date(expiresAt).getTime()>Date.now()?"نشط":active?"منتهي":"موقوف"}))}));
+app.get("/api/admin/members",auth,(req,res)=>res.json({members:db.members.map(({id,username,active,createdAt,expiresAt})=>({id,username,active,createdAt,expiresAt,daysLeft:Math.ceil((new Date(expiresAt).getTime()-Date.now())/86400000),status:active&&new Date(expiresAt).getTime()>Date.now()?"نشط":active?"منتهي":"موقوف"}))}));
 app.post("/api/admin/members",auth,async(req,res)=>{const days=Number(req.body.days||30);if(!Number.isInteger(days)||days<1||days>3650)return res.status(400).json({error:"مدة الاشتراك يجب أن تكون بين يوم و3650 يوماً"});const {username,password}=makeCredentials();const salt=crypto.randomBytes(16).toString("hex");const now=new Date();const member={id:crypto.randomUUID(),username,salt,passwordHash:passwordHash(password,salt),active:true,createdAt:now.toISOString(),expiresAt:new Date(now.getTime()+days*86400000).toISOString(),favorites:[]};db.members.push(member);await persist();res.status(201).json({member:{id:member.id,username,active:true,createdAt:member.createdAt,expiresAt:member.expiresAt},credentials:{username,password}})});
 app.patch("/api/admin/members/:id",auth,async(req,res)=>{const m=db.members.find(x=>x.id===req.params.id);if(!m)return res.status(404).json({error:"المشترك غير موجود"});if(typeof req.body.active==="boolean")m.active=req.body.active;if(req.body.username!==undefined){const username=String(req.body.username).trim();if(!/^[A-Za-z0-9_.-]{3,40}$/.test(username))return res.status(400).json({error:"اسم المستخدم يجب أن يكون 3 إلى 40 حرفاً إنجليزياً أو رقماً"});if(db.members.some(x=>x.id!==m.id&&x.username.toLowerCase()===username.toLowerCase()))return res.status(409).json({error:"اسم المستخدم مستخدم بالفعل"});m.username=username}if(Number.isInteger(Number(req.body.extendDays))&&Number(req.body.extendDays)>0&&Number(req.body.extendDays)<=3650){const base=Math.max(Date.now(),new Date(m.expiresAt).getTime());m.expiresAt=new Date(base+Number(req.body.extendDays)*86400000).toISOString();m.active=true}await persist();res.json({ok:true,username:m.username,expiresAt:m.expiresAt,active:m.active})});
 app.post("/api/admin/members/:id/reset-password",auth,async(req,res)=>{const m=db.members.find(x=>x.id===req.params.id);if(!m)return res.status(404).json({error:"المشترك غير موجود"});const password=crypto.randomBytes(12).toString("base64url");m.salt=crypto.randomBytes(16).toString("hex");m.passwordHash=passwordHash(password,m.salt);await persist();res.json({ok:true,username:m.username,password})});
@@ -52,7 +52,46 @@ app.put("/api/items/:id",auth,async(req,res)=>{const item=db.items.find(x=>x.id=
 app.delete("/api/items/:id",auth,async(req,res)=>{const n=db.items.length;db.items=db.items.filter(x=>x.id!==req.params.id);if(db.items.length===n)return res.status(404).json({error:"العنصر غير موجود"});await persist();res.json({ok:true})});
 app.post("/api/groups",auth,async(req,res)=>{const name=String(req.body.name||"").trim();if(!name||name.length>80)return res.status(400).json({error:"اسم المجموعة مطلوب وبحد أقصى 80 حرفاً"});if(!Array.isArray(db.groups))db.groups=[];if(db.groups.some(x=>String(x).toLowerCase()===name.toLowerCase()))return res.status(409).json({error:"هذه المجموعة موجودة بالفعل"});db.groups.push(name);await persist();res.status(201).json({ok:true,groups:db.groups,name})});app.put("/api/groups",auth,async(req,res)=>{const groups=Array.isArray(req.body.groups)?req.body.groups.map(x=>String(x).trim()).filter(Boolean).slice(0,100):null;if(!groups)return res.status(400).json({error:"قائمة مجموعات غير صالحة"});db.groups=[...new Set(groups)];await persist();res.json({groups:db.groups})});
 app.delete("/api/groups/:name",auth,async(req,res)=>{const name=String(req.params.name||"").trim();if(!name||name==="عام")return res.status(400).json({error:"لا يمكن حذف المجموعة العامة"});db.groups=db.groups.filter(x=>x!==name);let moved=0;for(const item of db.items){if(item.group===name){item.group="عام";moved++}}await persist();res.json({ok:true,moved})});
-app.post("/api/import-m3u",auth,async(req,res)=>{const raw=String(req.body.content||"");if(raw.length>2_000_000||!raw.trimStart().startsWith("#EXTM3U"))return res.status(400).json({error:"ملف M3U غير صالح أو حجمه أكبر من الحد"});const lines=raw.split(/\r?\n/);let pending=null,added=0;for(const line0 of lines){const line=line0.trim();if(line.startsWith("#EXTINF:")){const comma=line.indexOf(",");const name=comma>=0?line.slice(comma+1).trim():"بدون اسم";const group=(line.match(/group-title="([^"]*)"/i)||[])[1]||"عام";pending={name:name.slice(0,160),group:group.slice(0,80)}}else if(line&&!line.startsWith("#")&&pending&&validUrl(line)){db.items.push({id:crypto.randomUUID(),...pending,url:line,type:"live",poster:"",createdAt:new Date().toISOString()});added++;pending=null}}await persist();res.json({added})});
+function inferChannelGroup(name,group){
+ const g=String(group||"").trim(),n=String(name||"").toLowerCase();
+ if(g)return g.slice(0,80);
+ const countries=[["الأردن",/الأردن|الأردنية|رؤيا|المملكة الأردنية/],["الإمارات",/أبوظبي|أبو ظبي|الإمارات|دبي|الشارقة|عجمان|الفجيرة|ياس|بينونة|ماجد/],["السعودية",/السعودية|الإخبارية السعودية|الثقافية السعودية|sbc|mbc|روتانا|القرآن الكريم|السنة النبوية/],["العراق",/العراق|العراقية|دجلة|الشرقية|الرابعة|الرشيد|utv|الرافدين/],["سوريا",/سوريا|السورية|روناهي|روجافا|نور الشام/],["مصر",/مصر|المصرية|القاهرة|cbc|dmc|on e|النهار|صدى البلد/],["فلسطين",/فلسطين|القدس|الأقصى|معًا|النجاح|وطن/],["لبنان",/لبنان|الجديد|المنار|الميادين|mtv|otv/],["المغرب العربي",/المغرب|الجزائر|تونس|ليبيا|موريتانيا|الشروق|النهار الجزائرية/],["قطر",/قطر|الريان/],["الكويت",/الكويت/],["البحرين",/البحرين/],["عُمان",/عمان|عُمان/],["اليمن",/اليمن|عدن|حضرموت|بلقيس|المهرية/]];
+ for(const [label,re] of countries)if(re.test(n))return label;
+ if(/رياضة|sport|sports|رياضية/.test(n))return "رياضة";
+ if(/أطفال|kids|ماجد|سبيستون/.test(n))return "أطفال";
+ if(/أخبار|news|الحدث|الجزيرة|العربية|سكاي|فرانس 24|bbc|dw/.test(n))return "أخبار";
+ return "عربي - عام";
+}
+function parseM3U(raw){
+ const text=String(raw||"").replace(/^\\uFEFF/,"").trim();
+ if(!text||!text.split(/\\r?\\n/).some(x=>x.trim()==="#EXTM3U"||x.trim().startsWith("#EXTM3U")))throw Error("القائمة لا تحتوي على ترويسة #EXTM3U");
+ const lines=text.split(/\\r?\\n/);let meta=null;const entries=[],issues=[];
+ for(let i=0;i<lines.length;i++){const line=lines[i].trim();if(!line)continue;
+  if(line.startsWith("#EXTINF:")){const comma=line.indexOf(",");const attrs=line.slice(0,comma<0?undefined:comma);const name=(comma>=0?line.slice(comma+1):"").trim();const attr=k=>{const m=attrs.match(new RegExp("(?:^|\\\\s)"+k+"=[\\\\"']([^\\\\"']*)[\\\\"']","i"));return m?m[1]:""};meta={name:(name||attr("tvg-name")||"بدون اسم").slice(0,160),group:attr("group-title"),poster:attr("tvg-logo"),epgId:attr("tvg-id")};continue}
+  if(line.startsWith("#")||!meta)continue;
+  const url=line.split("|")[0].trim();
+  if(!validUrl(url)){issues.push({line:i+1,reason:"رابط غير صالح",name:meta.name});meta=null;continue}
+  entries.push({...meta,url});meta=null;
+ }
+ return {entries,issues};
+}
+function addM3UEntries(parsed){
+ let added=0,duplicates=0;const known=new Set(db.items.map(x=>String(x.url||"").trim()));
+ for(const row of parsed.entries){if(known.has(row.url)){duplicates++;continue}const group=inferChannelGroup(row.name,row.group);if(!db.groups.includes(group))db.groups.push(group);
+  db.items.push({id:crypto.randomUUID(),name:row.name,url:row.url,type:"live",group,poster:validOptionalUrl(row.poster),epgId:String(row.epgId||"").slice(0,160),sortOrder:db.items.length,plays:0,createdAt:new Date().toISOString()});known.add(row.url);added++}
+ return {added,duplicates,invalid:parsed.issues.length,issues:parsed.issues.slice(0,30),total:parsed.entries.length};
+}
+app.post("/api/import-m3u",auth,async(req,res)=>{try{const raw=String(req.body.content||"");if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});const parsed=parseM3U(raw);const result=addM3UEntries(parsed);await persist();res.json(result)}catch(e){res.status(400).json({error:e.message})}});
+app.post("/api/import-m3u-url",auth,async(req,res)=>{try{
+ const rawUrl=String(req.body.url||"").trim();if(!validUrl(rawUrl))return res.status(400).json({error:"أدخل رابط M3U صحيحاً"});
+ const u=new URL(rawUrl);if(u.username||u.password)return res.status(400).json({error:"روابط الدخول المضمّنة غير مدعومة"});
+ const addresses=await dns.lookup(u.hostname,{all:true});if(!addresses.length||addresses.some(x=>isPrivateAddress(x.address)))return res.status(400).json({error:"هذا العنوان غير مسموح لأسباب أمنية"});
+ const r=await fetch(u,{redirect:"error",signal:AbortSignal.timeout(15000),headers:{Accept:"application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*"}});
+ if(!r.ok)return res.status(502).json({error:"تعذر جلب القائمة: HTTP "+r.status});
+ const raw=await r.text();if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});
+ const parsed=parseM3U(raw);const result=addM3UEntries(parsed);await persist();res.json(result);
+ }catch(e){res.status(400).json({error:e.name==="TimeoutError"?"انتهت مهلة جلب القائمة":e.message})}});
+
 function isPrivateAddress(ip){if(net.isIP(ip)===4){const p=ip.split(".").map(Number);return p[0]===10||p[0]===127||p[0]===0||p[0]===169&&p[1]===254||p[0]===172&&p[1]>=16&&p[1]<=31||p[0]===192&&p[1]===168||p[0]>=224}if(net.isIP(ip)===6){const x=ip.toLowerCase();return x==="::1"||x==="::"||x.startsWith("fc")||x.startsWith("fd")||x.startsWith("fe80:")}return true}
 function validUrl(v){try{const u=new URL(String(v));return ["http:","https:"].includes(u.protocol)&&u.hostname.length>2}catch{return false}}function validOptionalUrl(v){return v&&validUrl(v)?String(v):""}
 function buildPlaylist(){let out="#EXTM3U\n";for(const x of db.items){const type=String(x.type||"live").toUpperCase();const group=(type+" - "+String(x.group||"عام")).replace(/["\r\n]/g,"");const name=String(x.name||"بدون اسم").replace(/["\r\n]/g,"");out+='#EXTINF:-1 group-title="'+group+'",'+name+"\n"+x.url+"\n"}return out}

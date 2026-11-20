@@ -18,9 +18,14 @@ function memberFromRequest(req){const raw=cookieValue(req,"mbtv_member");if(!raw
 function memberAuth(req,res,next){const m=memberFromRequest(req);if(!m)return res.status(401).json({error:"الاشتراك غير نشط أو انتهت صلاحيته"});req.member=m;next()}
 function passwordHash(password,salt){return crypto.scryptSync(password,salt,64).toString("hex")}
 function makeCredentials(){const username="mbtv"+crypto.randomBytes(4).toString("hex");const password=crypto.randomBytes(12).toString("base64url");return {username,password}}
+function ensureStats(){if(!db.stats)db.stats={plays:0,byItem:{},recent:[]};if(!db.stats.byItem)db.stats.byItem={};if(!Array.isArray(db.stats.recent))db.stats.recent=[]}
+function orderedItems(){return [...db.items].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0))}
+function recordPlay(item,member){ensureStats();db.stats.plays++;db.stats.byItem[item.id]=(db.stats.byItem[item.id]||0)+1;item.plays=(item.plays||0)+1;item.lastPlayedAt=new Date().toISOString();db.stats.recent.unshift({name:item.name,username:member?.username||"",at:item.lastPlayedAt});db.stats.recent=db.stats.recent.slice(0,100);persist().catch(()=>{})}
+
 
 
 app.get("/api/health",(req,res)=>res.json({ok:true,service:"MBTV",time:new Date().toISOString()}));
+app.get("/api/admin/stats",auth,(req,res)=>{ensureStats();const soon=db.members.filter(m=>m.active&&new Date(m.expiresAt).getTime()>Date.now()&&new Date(m.expiresAt).getTime()<=Date.now()+7*86400000).length;const expired=db.members.filter(m=>new Date(m.expiresAt).getTime()<=Date.now()).length;res.json({plays:db.stats.plays||0,channels:db.items.filter(x=>x.type==="live").length,soon,expired,top:orderedItems().map(x=>({name:x.name,plays:x.plays||0})).sort((a,b)=>b.plays-a.plays).slice(0,8)})});
 app.get("/api/admin/members",auth,(req,res)=>res.json({members:db.members.map(({id,username,active,createdAt,expiresAt})=>({id,username,active,createdAt,expiresAt,status:active&&new Date(expiresAt).getTime()>Date.now()?"نشط":active?"منتهي":"موقوف"}))}));
 app.post("/api/admin/members",auth,async(req,res)=>{const days=Number(req.body.days||30);if(!Number.isInteger(days)||days<1||days>3650)return res.status(400).json({error:"مدة الاشتراك يجب أن تكون بين يوم و3650 يوماً"});const {username,password}=makeCredentials();const salt=crypto.randomBytes(16).toString("hex");const now=new Date();const member={id:crypto.randomUUID(),username,salt,passwordHash:passwordHash(password,salt),active:true,createdAt:now.toISOString(),expiresAt:new Date(now.getTime()+days*86400000).toISOString(),favorites:[]};db.members.push(member);await persist();res.status(201).json({member:{id:member.id,username,active:true,createdAt:member.createdAt,expiresAt:member.expiresAt},credentials:{username,password}})});
 app.patch("/api/admin/members/:id",auth,async(req,res)=>{const m=db.members.find(x=>x.id===req.params.id);if(!m)return res.status(404).json({error:"المشترك غير موجود"});if(typeof req.body.active==="boolean")m.active=req.body.active;if(req.body.username!==undefined){const username=String(req.body.username).trim();if(!/^[A-Za-z0-9_.-]{3,40}$/.test(username))return res.status(400).json({error:"اسم المستخدم يجب أن يكون 3 إلى 40 حرفاً إنجليزياً أو رقماً"});if(db.members.some(x=>x.id!==m.id&&x.username.toLowerCase()===username.toLowerCase()))return res.status(409).json({error:"اسم المستخدم مستخدم بالفعل"});m.username=username}if(Number.isInteger(Number(req.body.extendDays))&&Number(req.body.extendDays)>0&&Number(req.body.extendDays)<=3650){const base=Math.max(Date.now(),new Date(m.expiresAt).getTime());m.expiresAt=new Date(base+Number(req.body.extendDays)*86400000).toISOString();m.active=true}await persist();res.json({ok:true,username:m.username,expiresAt:m.expiresAt,active:m.active})});
@@ -62,7 +67,7 @@ function xtreamMember(req,res,next){
   req.xtreamMember=m;next();
 }
 function xtreamBase(req){return (req.headers["x-forwarded-proto"]==="https"||req.secure?"https":"http")+"://"+req.get("host")}
-function xtreamItems(type){return db.items.map((item,index)=>({...item,_id:index+1})).filter(item=>type==="live"?!["movies","series"].includes(item.type):item.type===type)}
+function xtreamItems(type){return orderedItems().map((item,index)=>({...item,_id:index+1})).filter(item=>type==="live"?!["movies","series"].includes(item.type):item.type===type)}
 function xtreamCategoryIds(items){const names=[...new Set(items.map(x=>String(x.group||"عام")))];return new Map(names.map((name,index)=>[name,index+1]))}
 function xtreamUserInfo(m){return {username:m.username,password:"",message:"",auth:1,status:"Active",exp_date:String(Math.floor(new Date(m.expiresAt).getTime()/1000)),is_trial:"0",active_cons:"0",created_at:String(Math.floor(new Date(m.createdAt).getTime()/1000)),max_connections:"1",allowed_output_formats:["ts","m3u8"]}}
 function xtreamServerInfo(req){return {url:req.get("host"),port:req.socket.localPort||443,https_port:req.socket.localPort||443,server_protocol:req.headers["x-forwarded-proto"]==="https"?"https":"http",timezone:"Europe/Berlin",timestamp_now:Math.floor(Date.now()/1000),time_now:new Date().toISOString()}}
@@ -83,7 +88,7 @@ app.get(["/player_api.php","/player_api"],xtreamLimiter,xtreamMember,(req,res)=>
   return res.json([]);
 });
 app.get("/get.php",xtreamLimiter,xtreamMember,(req,res)=>{const type=String(req.query.type||"m3u_plus");if(!["m3u","m3u_plus"].includes(type))return res.status(400).send("Unsupported playlist type");res.type("application/x-mpegURL").send(xtreamPlaylist(req,db.items.map((item,index)=>({...item,_id:index+1}))))});
-function xtreamStream(req,res){const id=Number.parseInt(req.params.id,10),item=db.items[id-1];if(!item||!validUrl(item.url))return res.status(404).send("Stream not found");res.redirect(302,item.url)}
+function xtreamStream(req,res){const id=Number.parseInt(req.params.id,10),item=orderedItems()[id-1];if(!item||!validUrl(item.url))return res.status(404).send("Stream not found");recordPlay(item,req.xtreamMember);res.redirect(302,item.url)}
 app.get("/live/:username/:password/:id",xtreamLimiter,(req,res,next)=>{req.query.username=req.params.username;req.query.password=req.params.password;next()},xtreamMember,xtreamStream);
 app.get("/movie/:username/:password/:id",xtreamLimiter,(req,res,next)=>{req.query.username=req.params.username;req.query.password=req.params.password;next()},xtreamMember,xtreamStream);
 app.get("/series/:username/:password/:id",xtreamLimiter,(req,res,next)=>{req.query.username=req.params.username;req.query.password=req.params.password;next()},xtreamMember,xtreamStream);

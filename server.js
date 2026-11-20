@@ -76,12 +76,23 @@ function parseM3U(raw){
  }
  return {entries,issues};
 }
+const pendingM3U=new Map();
 function addM3UEntries(parsed){
  let added=0,duplicates=0;const known=new Set(db.items.map(x=>String(x.url||"").trim()));
  for(const row of parsed.entries){if(known.has(row.url)){duplicates++;continue}const group=inferChannelGroup(row.name,row.group);if(!db.groups.includes(group))db.groups.push(group);
   db.items.push({id:crypto.randomUUID(),name:row.name,url:row.url,type:"live",group,poster:validOptionalUrl(row.poster),epgId:String(row.epgId||"").slice(0,160),sortOrder:db.items.length,plays:0,createdAt:new Date().toISOString()});known.add(row.url);added++}
  return {added,duplicates,invalid:parsed.issues.length,issues:parsed.issues.slice(0,30),total:parsed.entries.length};
 }
+app.post("/api/import-m3u-preview",auth,async(req,res)=>{try{
+ let raw=String(req.body.content||"");
+ if(req.body.url){const rawUrl=String(req.body.url).trim();if(!validUrl(rawUrl))return res.status(400).json({error:"أدخل رابط M3U صحيحاً"});const u=new URL(rawUrl);if(u.username||u.password)return res.status(400).json({error:"روابط الدخول المضمّنة غير مدعومة"});const addresses=await dns.lookup(u.hostname,{all:true});if(!addresses.length||addresses.some(x=>isPrivateAddress(x.address)))return res.status(400).json({error:"هذا العنوان غير مسموح لأسباب أمنية"});const response=await fetch(u,{redirect:"error",signal:AbortSignal.timeout(15000),headers:{Accept:"application/vnd.apple.mpegurl,application/x-mpegURL,text/plain,*/*"}});if(!response.ok)return res.status(502).json({error:"تعذر جلب القائمة: HTTP "+response.status});raw=await response.text()}
+ if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});
+ const parsed=parseM3U(raw),known=new Set(db.items.map(x=>String(x.url||"").trim()));let duplicates=0;for(const row of parsed.entries){if(known.has(row.url))duplicates++;else known.add(row.url)}
+ const token=crypto.randomBytes(24).toString("hex");pendingM3U.set(token,{parsed,expiresAt:Date.now()+15*60*1000});
+ for(const [key,value] of pendingM3U)if(value.expiresAt<=Date.now())pendingM3U.delete(key);
+ res.json({token,total:parsed.entries.length,duplicates,added:parsed.entries.length-duplicates,invalid:parsed.issues.length,issues:parsed.issues.slice(0,20),sample:parsed.entries.slice(0,20).map(x=>({name:x.name,group:x.group||"",url:x.url}))});
+ }catch(e){res.status(400).json({error:e.name==="TimeoutError"?"انتهت مهلة جلب القائمة":e.message})}});
+app.post("/api/import-m3u-commit",auth,async(req,res)=>{try{const token=String(req.body.token||""),pending=pendingM3U.get(token);if(!pending||pending.expiresAt<=Date.now()){pendingM3U.delete(token);return res.status(410).json({error:"انتهت صلاحية المعاينة، أعد المعاينة من جديد"})}pendingM3U.delete(token);const result=addM3UEntries(pending.parsed);await persist();res.json(result)}catch(e){res.status(400).json({error:e.message})}});
 app.post("/api/import-m3u",auth,async(req,res)=>{try{const raw=String(req.body.content||"");if(raw.length>4_000_000)return res.status(413).json({error:"حجم القائمة أكبر من 4 ميغابايت"});const parsed=parseM3U(raw);const result=addM3UEntries(parsed);await persist();res.json(result)}catch(e){res.status(400).json({error:e.message})}});
 app.post("/api/import-m3u-url",auth,async(req,res)=>{try{
  const rawUrl=String(req.body.url||"").trim();if(!validUrl(rawUrl))return res.status(400).json({error:"أدخل رابط M3U صحيحاً"});

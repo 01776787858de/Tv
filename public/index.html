@@ -103,8 +103,8 @@ function wireLiveRows(){
    el.ondrop=async e=>{
     e.preventDefault();el.style.outline="";
     const from=window.__mbtvDrag,to=x.id;if(!from||from===to||window.__mbtvDragType!==type)return;
-    const ordered=[...data.items],filter=type==="live"?$("#liveGroupFilter").value:"*";
-    const matches=i=>i.type===type&&(filter==="*"||(i.group||"عام")===filter);
+    const ordered=[...data.items];
+    const matches=i=>sameOrderScope(i,x);
     const scope=ordered.filter(matches),a=scope.findIndex(i=>i.id===from),b=scope.findIndex(i=>i.id===to);
     if(a<0||b<0)return;
     scope.splice(b,0,scope.splice(a,1)[0]);
